@@ -1,7 +1,7 @@
 from bson import ObjectId
 from datetime import datetime
 from database.connection import MongoDBConnection
-from services.account_service import AccountService
+from services.accounts_service import AccountsService
 
 import logging
 import os
@@ -14,7 +14,7 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def create_account(account_service: AccountService, account_data: dict) -> ObjectId:
+def create_account(account_service: AccountsService, account_data: dict) -> ObjectId:
     """Create an account and return its ID."""
     try:
         account_id = account_service.create_account(account_data)
@@ -25,7 +25,7 @@ def create_account(account_service: AccountService, account_data: dict) -> Objec
         return None
 
 
-def delete_account(account_service: AccountService, account_id: ObjectId):
+def delete_account(account_service: AccountsService, account_id: ObjectId):
     """Delete an account by its ID."""
     if account_id is None:
         logging.error("No account ID provided for deletion.")
@@ -41,7 +41,7 @@ def delete_account(account_service: AccountService, account_id: ObjectId):
         logging.error(f"Failed to delete account: {e}")
 
 
-def get_accounts_for_user(account_service: AccountService, user_identifier):
+def get_accounts_for_user(account_service: AccountsService, user_identifier):
     """Retrieve and log accounts for a specific user."""
     try:
         accounts = account_service.get_accounts_for_user(user_identifier)
@@ -54,7 +54,7 @@ def get_accounts_for_user(account_service: AccountService, user_identifier):
     except Exception as e:
         logging.error(f"Failed to retrieve accounts for user {user_identifier}: {e}")
 
-def close_account(account_service: AccountService, account_id: ObjectId):
+def close_account(account_service: AccountsService, account_id: ObjectId):
     """Attempt to close an account by its ID."""
     if account_id is None:
         logging.error("No account ID provided for closing.")
@@ -77,8 +77,8 @@ def main():
     users_collection_name = "users"
     connection = MongoDBConnection(uri)
 
-    # Initialize the AccountService
-    account_service = AccountService(connection, db_name, accounts_collection_name, users_collection_name)
+    # Initialize the AccountsService
+    account_service = AccountsService(connection, db_name, accounts_collection_name, users_collection_name)
 
     # # Sample account data
     # account_data = {

@@ -1,6 +1,6 @@
 from bson import ObjectId
 from database.connection import MongoDBConnection
-from services.user_service import UserService
+from services.users_service import UsersService
 
 import logging
 import os
@@ -20,8 +20,8 @@ def main():
     users_collection_name = "users"
     connection = MongoDBConnection(uri)
 
-    # Initialize the UserService
-    user_service = UserService(connection, db_name, users_collection_name)
+    # Initialize the UsersService
+    user_service = UsersService(connection, db_name, users_collection_name)
 
     logging.info("Retrieving users...")
     # Retrieve all users

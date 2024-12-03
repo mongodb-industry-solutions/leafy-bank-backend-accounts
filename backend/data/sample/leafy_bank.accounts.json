@@ -1,0 +1,150 @@
+[{
+  "_id": {
+    "$oid": "674dc33d4473ad1e1d4e02d0"
+  },
+  "AccountNumber": "1234567890",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2023-01-15T00:00:00.000Z"
+    }
+  },
+  "AccountType": "Checking",
+  "AccountBalance": 2050,
+  "AccountCurrency": "EUR",
+  "AccountDescription": "Primary checking account",
+  "AccountUser": {
+    "UserName": "fridaklo",
+    "UserId": {
+      "$oid": "65a546ae4a8f64e8f88fb89e"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "674dc33d4473ad1e1d4e02d1"
+  },
+  "AccountNumber": "9876543210",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2022-06-10T00:00:00.000Z"
+    }
+  },
+  "AccountType": "Savings",
+  "AccountBalance": 5450,
+  "AccountCurrency": "EUR",
+  "AccountDescription": "High-interest savings account",
+  "AccountUser": {
+    "UserName": "fridaklo",
+    "UserId": {
+      "$oid": "65a546ae4a8f64e8f88fb89e"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "674dc33d4473ad1e1d4e02d2"
+  },
+  "AccountNumber": "1122334455",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Closed",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2020-03-20T00:00:00.000Z"
+    },
+    "ClosingDate": {
+      "$date": "2023-02-28T00:00:00.000Z"
+    }
+  },
+  "AccountType": "Checking",
+  "AccountBalance": 0,
+  "AccountCurrency": "EUR",
+  "AccountDescription": "Old checking account",
+  "AccountUser": {
+    "UserName": "fridaklo",
+    "UserId": {
+      "$oid": "65a546ae4a8f64e8f88fb89e"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "674ee14f3dc463acd6eb5633"
+  },
+  "AccountNumber": "321321321",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2024-12-03T00:00:00.000Z"
+    }
+  },
+  "AccountType": "Savings",
+  "AccountBalance": 2400,
+  "AccountCurrency": "EUR",
+  "AccountDescription": "New savings account",
+  "AccountUser": {
+    "UserName": "claumon",
+    "UserId": {
+      "$oid": "671ff2451ec726b417352703"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "674eee8aeba89055c8ef3617"
+  },
+  "AccountNumber": "765438213",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2024-12-03T00:00:00.000Z"
+    }
+  },
+  "AccountType": "Savings",
+  "AccountBalance": 4850,
+  "AccountCurrency": "EUR",
+  "AccountDescription": "My savings account",
+  "AccountUser": {
+    "UserName": "gracehop",
+    "UserId": {
+      "$oid": "66fe219d625d93a100528224"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "674f052649dab970d1b615a9"
+  },
+  "AccountNumber": "666552219",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Closed",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2024-12-03T00:00:00.000Z"
+    },
+    "ClosingDate": {
+      "$date": "2024-12-03T13:21:28.936Z"
+    }
+  },
+  "AccountType": "Savings",
+  "AccountBalance": 0,
+  "AccountCurrency": "EUR",
+  "AccountDescription": "Savings account for Frida Kahlo",
+  "AccountUser": {
+    "UserName": "fridaklo",
+    "UserId": {
+      "$oid": "65a546ae4a8f64e8f88fb89e"
+    }
+  }
+}]

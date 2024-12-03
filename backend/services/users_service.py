@@ -4,7 +4,7 @@ from database.connection import MongoDBConnection
 
 
 
-class UserService:
+class UsersService:
     """This class provides methods to interact with users in the database."""
 
     def __init__(self, connection: MongoDBConnection, db_name: str, users_collection_name: str):
