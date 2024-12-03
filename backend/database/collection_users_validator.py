@@ -12,6 +12,20 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+def remove_validator_from_users_collection(connection: MongoDBConnection, db_name: str):
+    db = connection.get_database(db_name)
+    try:
+        # Use the collMod command to remove the validator
+        db.command({
+            "collMod": "users",
+            "validator": {},  # Set validator to an empty object to remove it
+            "validationLevel": "off"  # Optionally, turn off validation
+        })
+        logging.info("Validator removed from the users collection.")
+    except Exception as e:
+        logging.error(f"An error occurred while removing the validator: {e}")
+
 def create_users_collection_with_validation(connection: MongoDBConnection, db_name: str):
     db = connection.get_database(db_name)
     # Create a collection with validation: https://www.mongodb.com/docs/manual/core/schema-validation/specify-json-schema/#specify-json-schema-validation
