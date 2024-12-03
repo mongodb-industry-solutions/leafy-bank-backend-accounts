@@ -8,7 +8,7 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-class AccountService:
+class AccountsService:
     """This class provides methods to interact with accounts in the database."""
 
     def __init__(self, connection: MongoDBConnection, db_name: str, accounts_collection_name: str, users_collection_name: str):

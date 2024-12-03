@@ -1,0 +1,276 @@
+[{
+  "_id": {
+    "$oid": "65a546ae4a8f64e8f88fb89e"
+  },
+  "UserName": "fridaklo",
+  "UserEmail": "frida.klo@gmail.com",
+  "UserIdentification": "IDPERSONA01",
+  "Name": {
+    "FirstName": "Frida",
+    "LastName": "Kahlo",
+    "NamePrefix": "Miss"
+  },
+  "ResidentialStatus": "Resident",
+  "CivilStatus": "Widow",
+  "BirthDate": {
+    "$date": {
+      "$numberLong": "-1972080000000"
+    }
+  },
+  "Nationality": "Mexican",
+  "JobTitle": "Painter",
+  "UserAddress": {
+    "StreetAndNumber": "Calle de Londres 247",
+    "PostalCode": "62240",
+    "City": "Mexico City",
+    "Country": "Mexico",
+    "State": "Mexico City"
+  },
+  "LinkedAccounts": [
+    {
+      "$oid": "674dc33d4473ad1e1d4e02d0"
+    },
+    {
+      "$oid": "674dc33d4473ad1e1d4e02d1"
+    },
+    {
+      "$oid": "674dc33d4473ad1e1d4e02d2"
+    },
+    {
+      "$oid": "674f052649dab970d1b615a9"
+    }
+  ],
+  "RecentTransactions": [
+    {
+      "TransactionId": {
+        "$oid": "674f216ae5f0f1d4ee2c17ec"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:19:06.805Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f216ae5f0f1d4ee2c17ec"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:19:06.922Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ab5c934e4287db69049"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:58:45.497Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ab5c934e4287db69049"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:58:45.666Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ee0e6dddef0e8cc8f19"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:16:33.275Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ee0e6dddef0e8cc8f19"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:16:33.393Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2fb31e72564fe02b6708"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:20:04.058Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2fb31e72564fe02b6708"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:20:04.175Z"
+      }
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "66fe219d625d93a100528224"
+  },
+  "UserName": "gracehop",
+  "UserEmail": "grace.hopper@gmail.com",
+  "UserIdentification": "IDPERSONA02",
+  "Name": {
+    "FirstName": "Grace",
+    "LastName": "Hopper",
+    "NamePrefix": "Madam"
+  },
+  "ResidentialStatus": "PermanentResident",
+  "CivilStatus": "LegallyDivorced",
+  "BirthDate": {
+    "$date": {
+      "$numberLong": "-1990137600000"
+    }
+  },
+  "Nationality": "American",
+  "JobTitle": "Computer Scientist",
+  "UserAddress": {
+    "StreetAndNumber": "226 W 108th St",
+    "PostalCode": "NY 10025",
+    "Country": "USA",
+    "State": "New York",
+    "City": "New York City"
+  },
+  "LinkedAccounts": [
+    {
+      "$oid": "674eee8aeba89055c8ef3617"
+    }
+  ],
+  "RecentTransactions": [
+    {
+      "TransactionId": {
+        "$oid": "674f216be5f0f1d4ee2c17ef"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:19:08.137Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ab6c934e4287db6904c"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:58:46.833Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ee2e6dddef0e8cc8f1c"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:16:34.565Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2fb41e72564fe02b670b"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:20:05.349Z"
+      }
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "671ff0081ec726b417352702"
+  },
+  "UserName": "adalove",
+  "UserEmail": "ada.lovelace@gmail.com",
+  "UserIdentification": "IDPERSONA03",
+  "Name": {
+    "FirstName": "Ada",
+    "LastName": "Lovelace",
+    "NamePrefix": "Miss"
+  },
+  "ResidentialStatus": "NonResident",
+  "CivilStatus": "Single",
+  "BirthDate": {
+    "$date": {
+      "$numberLong": "-4861728000000"
+    }
+  },
+  "Nationality": "British",
+  "JobTitle": "Mathematician",
+  "UserAddress": {
+    "StreetAndNumber": "3 St James's Square",
+    "PostalCode": "SW1Y 4JU",
+    "Country": "UK",
+    "State": "England",
+    "City": "London"
+  },
+  "LinkedAccounts": [],
+  "RecentTransactions": []
+},
+{
+  "_id": {
+    "$oid": "671ff2451ec726b417352703"
+  },
+  "UserName": "claumon",
+  "UserEmail": "claude.monet@gmail.com",
+  "UserIdentification": "IDPERSONA04",
+  "Name": {
+    "FirstName": "Claude",
+    "LastName": "Monet",
+    "NamePrefix": "Mister"
+  },
+  "ResidentialStatus": "Resident",
+  "CivilStatus": "Married",
+  "BirthDate": {
+    "$date": {
+      "$numberLong": "-4074969600000"
+    }
+  },
+  "Nationality": "French",
+  "JobTitle": "Painter",
+  "UserAddress": {
+    "StreetAndNumber": "45 Rue Laffitte",
+    "PostalCode": "75009",
+    "Country": "France",
+    "State": "Île-de-France",
+    "City": "Paris"
+  },
+  "LinkedAccounts": [
+    {
+      "$oid": "674ee14f3dc463acd6eb5633"
+    }
+  ],
+  "RecentTransactions": [
+    {
+      "TransactionId": {
+        "$oid": "674f216be5f0f1d4ee2c17ef"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:19:07.965Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ab6c934e4287db6904c"
+      },
+      "Date": {
+        "$date": "2024-12-03T15:58:46.716Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2ee2e6dddef0e8cc8f1c"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:16:34.446Z"
+      }
+    },
+    {
+      "TransactionId": {
+        "$oid": "674f2fb41e72564fe02b670b"
+      },
+      "Date": {
+        "$date": "2024-12-03T16:20:05.229Z"
+      }
+    }
+  ]
+}]
