@@ -55,7 +55,22 @@ class AccountsService:
         # In Python, type hints (like float in function signature) are not enforced at runtime.
         # This means that even if you specify account_balance: float, the actual value passed to the function can still be an integer if it's not explicitly converted to a float.
         # Ensure account_balance is a float
-        account_balance = float(account_balance)
+        try:
+            account_balance = float(account_balance)
+        except ValueError:
+            logging.error("Account balance must be a valid number.")
+            raise ValueError("Account balance must be a valid number.")
+        
+        # Validate account balance is greater than or equal to 0
+        if account_balance < 0:
+            logging.error("Account balance must be greater than or equal to 0.")
+            raise ValueError("Account balance must be greater than or equal to 0.")
+        
+        # Validate account balance does not exceed the limit
+        initial_balance_limit = float(1000000)
+        if account_balance > initial_balance_limit:
+            logging.error(f"Account balance exceeds the limit of {initial_balance_limit}.")
+            raise ValueError(f"Account balance exceeds the limit of {initial_balance_limit}.")
 
         # Construct the account data with default values
         account_data = {
