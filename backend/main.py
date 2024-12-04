@@ -42,7 +42,8 @@ users_collection_name = "users"
 connection = MongoDBConnection(MONGODB_URI)
 
 # Initialize the AccountService
-accounts_service = AccountsService(connection, db_name, accounts_collection_name, users_collection_name)
+accounts_service = AccountsService(
+    connection, db_name, accounts_collection_name, users_collection_name)
 
 # Initialize the UsersService
 users_service = UsersService(connection, db_name, users_collection_name)
@@ -63,16 +64,39 @@ async def create_account(request: Request):
     """
     try:
         data = await request.json()
-        
+
         # Extract required fields from the request data
         user_name = data.get("UserName")
         user_id = data.get("UserId")
         account_number = data.get("AccountNumber")
         account_balance = data.get("AccountBalance")
         account_type = data.get("AccountType")
+
         # Validate required fields
         if not all([user_name, user_id, account_number, account_balance, account_type]):
-            raise HTTPException(status_code=400, detail="Missing required account data")
+            raise HTTPException(
+                status_code=400, detail="Missing required account data")
+
+        # Validate account balance is a float
+        try:
+            account_balance = float(account_balance)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Account balance must be a valid number.")
+        # Validate account balance is greater than or equal to 0
+        if account_balance < 0:
+            raise HTTPException(
+                status_code=400, detail="Account balance must be greater than or equal to 0.")
+
+        # Validate account balance does not exceed the limit
+        # Set the initial balance limit to 1M
+        initial_balance_limit = float(1000000)
+        if account_balance > initial_balance_limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Account balance exceeds the limit of {initial_balance_limit}. Please ensure the balance is {initial_balance_limit} or less."
+            )
+
         # Create the account using the refactored function
         account_id = accounts_service.create_account(
             user_name=user_name,
@@ -153,12 +177,14 @@ async def fetch_accounts_for_user(request: Request):
         data = await request.json()
         user_identifier = data.get("user_identifier")
         if not user_identifier:
-            raise HTTPException(status_code=400, detail="User identifier is required")
+            raise HTTPException(
+                status_code=400, detail="User identifier is required")
         if ObjectId.is_valid(user_identifier):
             user_identifier = ObjectId(user_identifier)
         accounts = accounts_service.get_accounts_for_user(user_identifier)
         if accounts:
-            logging.info(f"Found {len(accounts)} accounts for user {user_identifier}")
+            logging.info(
+                f"Found {len(accounts)} accounts for user {user_identifier}")
             return Response(content=json.dumps({"accounts": accounts}, cls=MyJSONEncoder), media_type="application/json")
         else:
             logging.info(f"No accounts found for user {user_identifier}")
@@ -180,15 +206,19 @@ async def fetch_active_accounts_for_user(request: Request):
         data = await request.json()
         user_identifier = data.get("user_identifier")
         if not user_identifier:
-            raise HTTPException(status_code=400, detail="User identifier is required")
+            raise HTTPException(
+                status_code=400, detail="User identifier is required")
         if ObjectId.is_valid(user_identifier):
             user_identifier = ObjectId(user_identifier)
-        accounts = accounts_service.get_active_accounts_for_user(user_identifier)
+        accounts = accounts_service.get_active_accounts_for_user(
+            user_identifier)
         if accounts:
-            logging.info(f"Found {len(accounts)} active accounts for user {user_identifier}")
+            logging.info(
+                f"Found {len(accounts)} active accounts for user {user_identifier}")
             return Response(content=json.dumps({"accounts": accounts}, cls=MyJSONEncoder), media_type="application/json")
         else:
-            logging.info(f"No active accounts found for user {user_identifier}")
+            logging.info(
+                f"No active accounts found for user {user_identifier}")
             return Response(content=json.dumps({"accounts": []}, cls=MyJSONEncoder), media_type="application/json")
     except Exception as e:
         logging.error(f"Error retrieving active accounts for user: {str(e)}")
@@ -222,7 +252,8 @@ async def fetch_user(request: Request):
         data = await request.json()
         user_identifier = data.get("user_identifier")
         if not user_identifier:
-            raise HTTPException(status_code=400, detail="User identifier is required")
+            raise HTTPException(
+                status_code=400, detail="User identifier is required")
         if ObjectId.is_valid(user_identifier):
             user_identifier = ObjectId(user_identifier)
         user = users_service.get_user(user_identifier)
