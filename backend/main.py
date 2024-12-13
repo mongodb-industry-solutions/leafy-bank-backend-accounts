@@ -54,6 +54,129 @@ async def read_root(request: Request):
     return {"message": "Server is running"}
 
 
+@app.post("/fetch-accounts")
+async def fetch_accounts(request: Request):
+    """Retrieve all accounts, optionally excluding a specific account.
+    Args:
+        request (Request): The request object containing an optional account_id to exclude.
+    Returns:
+        dict: A list of all accounts, optionally excluding a specific account.
+    """
+    try:
+        data = await request.json()
+        exclude_account_id = data.get("exclude_account_id")
+
+        # Validate exclude_account_id only if it's provided
+        if exclude_account_id and exclude_account_id.strip():
+            if not ObjectId.is_valid(exclude_account_id):
+                raise HTTPException(
+                    status_code=400, detail="Invalid exclude account ID format")
+            exclude_account_id = ObjectId(exclude_account_id)
+
+        accounts = accounts_service.get_accounts(exclude_account_id)
+        logging.info(f"Retrieved {len(accounts)} accounts from the database")
+
+        return Response(content=json.dumps({"accounts": accounts}, cls=MyJSONEncoder), media_type="application/json")
+    except Exception as e:
+        logging.error(f"Error retrieving accounts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/fetch-active-accounts")
+async def fetch_active_accounts(request: Request):
+    """Retrieve all active accounts, optionally excluding a specific account.
+    Args:
+        request (Request): The request object containing an optional account_id to exclude.
+    Returns:
+        dict: A list of all active accounts, optionally excluding a specific account.
+    """
+    try:
+        data = await request.json()
+        exclude_account_id = data.get("exclude_account_id")
+
+        # Validate exclude_account_id only if it's provided
+        if exclude_account_id and exclude_account_id.strip():
+            if not ObjectId.is_valid(exclude_account_id):
+                raise HTTPException(
+                    status_code=400, detail="Invalid exclude account ID format")
+            exclude_account_id = ObjectId(exclude_account_id)
+
+        accounts = accounts_service.get_active_accounts(exclude_account_id)
+        logging.info(
+            f"Retrieved {len(accounts)} active accounts from the database")
+
+        return Response(content=json.dumps({"accounts": accounts}, cls=MyJSONEncoder), media_type="application/json")
+    except Exception as e:
+        logging.error(f"Error retrieving active accounts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/find-account-by-number")
+async def find_account_by_number(request: Request):
+    """Retrieve an account by its number.
+    Args:
+        request (Request): The request object containing the account number.
+    Returns:
+        dict: The account document if found, otherwise an error message.
+    """
+    try:
+        data = await request.json()
+        account_number = data.get("account_number")
+
+        if account_number is None:
+            raise HTTPException(
+                status_code=400, detail="Account number is required")
+
+        # Ensure account_number is treated as a string
+        account_number = str(account_number)
+
+        account = accounts_service.get_account_by_number(account_number)
+        if account:
+            logging.info(f"Found account with number {account_number}")
+            return Response(content=json.dumps({"account": account}, cls=MyJSONEncoder), media_type="application/json")
+        else:
+            logging.info(f"No account found with number {account_number}")
+            raise HTTPException(status_code=404, detail="Account not found")
+
+    except Exception as e:
+        logging.error(f"Error retrieving account by number: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/find-active-account-by-number")
+async def find_active_account_by_number(request: Request):
+    """Retrieve an active account by its number.
+    Args:
+        request (Request): The request object containing the account number.
+    Returns:
+        dict: The account document if found, otherwise an error message.
+    """
+    try:
+        data = await request.json()
+        account_number = data.get("account_number")
+
+        if account_number is None:
+            raise HTTPException(
+                status_code=400, detail="Account number is required")
+
+        # Ensure account_number is treated as a string
+        account_number = str(account_number)
+
+        account = accounts_service.get_active_account_by_number(account_number)
+        if account:
+            logging.info(f"Found active account with number {account_number}")
+            return Response(content=json.dumps({"account": account}, cls=MyJSONEncoder), media_type="application/json")
+        else:
+            logging.info(
+                f"No active account found with number {account_number}")
+            raise HTTPException(
+                status_code=404, detail="Active account not found")
+
+    except Exception as e:
+        logging.error(f"Error retrieving active account by number: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @app.post("/create-account")
 async def create_account(request: Request):
     """Create a new account with the provided data.
@@ -83,19 +206,22 @@ async def create_account(request: Request):
         except ValueError:
             raise HTTPException(
                 status_code=400, detail="Account balance must be a valid number.")
-        # Validate account balance is greater than or equal to 0
+
+        # Validate account balance constraints
         if account_balance < 0:
             raise HTTPException(
                 status_code=400, detail="Account balance must be greater than or equal to 0.")
 
-        # Validate account balance does not exceed the limit
-        # Set the initial balance limit to 1M
         initial_balance_limit = float(1000000)
         if account_balance > initial_balance_limit:
             raise HTTPException(
                 status_code=400,
-                detail=f"Account balance exceeds the limit of {initial_balance_limit}. Please ensure the balance is {initial_balance_limit} or less."
-            )
+                detail=f"Account balance exceeds the limit of {initial_balance_limit}.")
+
+        # Check for duplicate account number before creation
+        if accounts_service.accounts_collection.find_one({"AccountNumber": account_number}):
+            raise HTTPException(
+                status_code=400, detail="An account with this number already exists.")
 
         # Create the account using the refactored function
         account_id = accounts_service.create_account(
@@ -105,11 +231,18 @@ async def create_account(request: Request):
             account_balance=account_balance,
             account_type=account_type
         )
+
         logging.info(f"Account created with ID {account_id}")
         return {"message": "Account created successfully", "account_id": str(account_id)}
+
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException as he:
+        logging.error(f"HTTP error creating account: {str(he)}")
+        raise he
     except Exception as e:
         logging.error(f"Error creating account: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/delete-account")

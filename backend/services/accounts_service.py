@@ -1,5 +1,5 @@
 from bson import ObjectId
-from typing import Union
+from typing import Union, Optional
 from database.connection import MongoDBConnection
 from datetime import datetime, timezone
 
@@ -30,17 +30,78 @@ class AccountsService:
         self.users_collection = connection.get_collection(
             db_name, users_collection_name)
 
+    def get_accounts(self, exclude_account_id: Optional[str] = None) -> list[dict]:
+        """Retrieve all accounts, optionally excluding a specific account.
+        Args:
+            exclude_account_id (Optional[str]): The ID of the account to exclude from the results.
+        Returns:
+            list[dict]: A list of all accounts, optionally excluding a specific account.
+        """
+        query = {}
+        if exclude_account_id:
+            query["_id"] = {"$ne": ObjectId(exclude_account_id)}
+        accounts = list(self.accounts_collection.find(query))
+        return accounts
+
+    def get_active_accounts(self, exclude_account_id: Optional[str] = None) -> list[dict]:
+        """Retrieve all active accounts, optionally excluding a specific account.
+        Args:
+            exclude_account_id (Optional[str]): The ID of the account to exclude from the results.
+        Returns:
+            list[dict]: A list of all active accounts, optionally excluding a specific account.
+        """
+        query = {"AccountStatus": "Active"}
+        if exclude_account_id:
+            query["_id"] = {"$ne": ObjectId(exclude_account_id)}
+        accounts = list(self.accounts_collection.find(query))
+        return accounts
+
+    def get_account_by_number(self, account_number: str) -> Optional[dict]:
+        """Retrieve an account by its number.
+        Args:
+            account_number (str): The account number to search for.
+        Returns:
+            Optional[dict]: The account document if found, otherwise None.
+        """
+        account = self.accounts_collection.find_one(
+            {"AccountNumber": account_number})
+        if account:
+            logging.info(f"Account found with number {account_number}")
+        else:
+            logging.info(f"No account found with number {account_number}")
+        return account
+
+    def get_active_account_by_number(self, account_number: str) -> Optional[dict]:
+        """Retrieve an active account by its number.
+        Args:
+            account_number (str): The account number to search for.
+        Returns:
+            Optional[dict]: The active account document if found, otherwise None.
+        """
+        account = self.accounts_collection.find_one(
+            {"AccountNumber": account_number, "AccountStatus": "Active"})
+        if account:
+            logging.info(f"Active account found with number {account_number}")
+        else:
+            logging.info(
+                f"No active account found with number {account_number}")
+        return account
+
     def create_account(self, account_number: str, account_balance: float, account_type: str, user_name: str, user_id: str) -> ObjectId:
         """Create an account and return its ID.
         Args:
-            user_name (str): The username of the account holder.
-            user_id (str): The user ID of the account holder.
-            account_number (str): The account number (9 digits).
+            account_number (str): The account number.
             account_balance (float): The initial account balance.
-            account_type (str): The type of account (Checking or Savings).
+            account_type (str): The type of account.
+            user_name (str): The username of the user.
+            user_id (str): The ObjectId of the user.
         Returns:
-            ObjectId: The ID of the created account.
+            ObjectId: The ID of the newly created account.
+
+        Raises:
+            ValueError: If the user_id or username is invalid, the account balance is invalid, or the account number already exists.
         """
+
         # Validate and convert user_id to ObjectId
         user_id_obj = ObjectId(user_id)
 
@@ -52,25 +113,33 @@ class AccountsService:
                 f"User with ID {user_id} and username {user_name} not found.")
             raise ValueError("Invalid user ID or username.")
 
-        # In Python, type hints (like float in function signature) are not enforced at runtime.
-        # This means that even if you specify account_balance: float, the actual value passed to the function can still be an integer if it's not explicitly converted to a float.
         # Ensure account_balance is a float
         try:
             account_balance = float(account_balance)
         except ValueError:
             logging.error("Account balance must be a valid number.")
             raise ValueError("Account balance must be a valid number.")
-        
+
         # Validate account balance is greater than or equal to 0
         if account_balance < 0:
-            logging.error("Account balance must be greater than or equal to 0.")
-            raise ValueError("Account balance must be greater than or equal to 0.")
-        
+            logging.error(
+                "Account balance must be greater than or equal to 0.")
+            raise ValueError(
+                "Account balance must be greater than or equal to 0.")
+
         # Validate account balance does not exceed the limit
         initial_balance_limit = float(1000000)
         if account_balance > initial_balance_limit:
-            logging.error(f"Account balance exceeds the limit of {initial_balance_limit}.")
-            raise ValueError(f"Account balance exceeds the limit of {initial_balance_limit}.")
+            logging.error(
+                f"Account balance exceeds the limit of {initial_balance_limit}.")
+            raise ValueError(
+                f"Account balance exceeds the limit of {initial_balance_limit}.")
+
+        # Simple check for duplicate account number
+        if self.accounts_collection.find_one({"AccountNumber": account_number}):
+            logging.error(
+                f"Account with number {account_number} already exists.")
+            raise ValueError("An account with this number already exists.")
 
         # Construct the account data with default values
         account_data = {
@@ -91,36 +160,18 @@ class AccountsService:
                 "UserId": user_id_obj
             }
         }
+
         # Insert the account data into the accounts collection
         result = self.accounts_collection.insert_one(account_data)
         account_id = result.inserted_id
+
         # Update the user's LinkedAccounts array in the users collection
         self.users_collection.update_one(
             {"_id": user_id_obj},
             {"$addToSet": {"LinkedAccounts": account_id}}
         )
+
         return account_id
-
-    def delete_account(self, account_id: str) -> bool:
-        """Delete an account by its ID.
-
-        Args:
-            account_id (str): The ID of the account to delete.
-
-        Returns:
-            bool: True if the account was successfully deleted, False otherwise.
-        """
-        # Delete the account by its ObjectId
-        result = self.accounts_collection.delete_one(
-            {"_id": ObjectId(account_id)})
-        if result.deleted_count > 0:
-            # Remove the account ID from all users' LinkedAccounts arrays
-            self.users_collection.update_many(
-                {"LinkedAccounts": ObjectId(account_id)},
-                {"$pull": {"LinkedAccounts": ObjectId(account_id)}}
-            )
-            return True
-        return False
 
     def get_accounts_for_user(self, user_identifier: Union[str, ObjectId]) -> list[dict]:
         """Retrieve accounts for a specific user.
