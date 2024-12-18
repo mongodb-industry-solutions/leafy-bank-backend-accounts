@@ -12,8 +12,8 @@
     }
   },
   "AccountType": "Savings",
-  "AccountBalance": 1200,
-  "AccountCurrency": "EUR",
+  "AccountBalance": 1100,
+  "AccountCurrency": "USD",
   "AccountDescription": "Savings account for fridaklo",
   "AccountUser": {
     "UserName": "fridaklo",
@@ -36,8 +36,8 @@
     }
   },
   "AccountType": "Checking",
-  "AccountBalance": 3000,
-  "AccountCurrency": "EUR",
+  "AccountBalance": 2975,
+  "AccountCurrency": "USD",
   "AccountDescription": "Checking account for fridaklo",
   "AccountUser": {
     "UserName": "fridaklo",
@@ -60,8 +60,8 @@
     }
   },
   "AccountType": "Savings",
-  "AccountBalance": 2000,
-  "AccountCurrency": "EUR",
+  "AccountBalance": 2050,
+  "AccountCurrency": "USD",
   "AccountDescription": "Savings account for gracehop",
   "AccountUser": {
     "UserName": "gracehop",
@@ -84,8 +84,8 @@
     }
   },
   "AccountType": "Checking",
-  "AccountBalance": 4800,
-  "AccountCurrency": "EUR",
+  "AccountBalance": 4825,
+  "AccountCurrency": "USD",
   "AccountDescription": "Checking account for claumon",
   "AccountUser": {
     "UserName": "claumon",
@@ -109,7 +109,79 @@
   },
   "AccountType": "Savings",
   "AccountBalance": 800,
-  "AccountCurrency": "EUR",
+  "AccountCurrency": "USD",
+  "AccountDescription": "Savings account for claumon",
+  "AccountUser": {
+    "UserName": "claumon",
+    "UserId": {
+      "$oid": "671ff2451ec726b417352703"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "675488b874a6710be0583b3e"
+  },
+  "AccountNumber": "514624177",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2024-12-07T17:41:12.710Z"
+    }
+  },
+  "AccountType": "Savings",
+  "AccountBalance": 550,
+  "AccountCurrency": "USD",
+  "AccountDescription": "Savings account for fridaklo",
+  "AccountUser": {
+    "UserName": "fridaklo",
+    "UserId": {
+      "$oid": "65a546ae4a8f64e8f88fb89e"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "67548bdd74a6710be0583b3f"
+  },
+  "AccountNumber": "716974731",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2024-12-07T17:54:37.776Z"
+    }
+  },
+  "AccountType": "Checking",
+  "AccountBalance": 1100,
+  "AccountCurrency": "USD",
+  "AccountDescription": "Checking account for gracehop",
+  "AccountUser": {
+    "UserName": "gracehop",
+    "UserId": {
+      "$oid": "66fe219d625d93a100528224"
+    }
+  }
+},
+{
+  "_id": {
+    "$oid": "6761837df40fb8e08c8097a4"
+  },
+  "AccountNumber": "492081594",
+  "AccountBank": "LeafyBank",
+  "AccountStatus": "Active",
+  "AccountIdentificationType": "AccountNumber",
+  "AccountDate": {
+    "OpeningDate": {
+      "$date": "2024-12-17T13:58:21.692Z"
+    }
+  },
+  "AccountType": "Savings",
+  "AccountBalance": 3350,
+  "AccountCurrency": "USD",
   "AccountDescription": "Savings account for claumon",
   "AccountUser": {
     "UserName": "claumon",

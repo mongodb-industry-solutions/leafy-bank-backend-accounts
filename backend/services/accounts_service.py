@@ -153,7 +153,7 @@ class AccountsService:
             },
             "AccountType": account_type,
             "AccountBalance": account_balance,
-            "AccountCurrency": "EUR",  # Default currency
+            "AccountCurrency": "USD",  # Default currency
             "AccountDescription": f"{account_type} account for {user_name}",
             "AccountUser": {
                 "UserName": user_name,
