@@ -5,8 +5,11 @@ from encoder.json_encoder import MyJSONEncoder
 
 import logging
 
+from typing import List, Dict
+
 import json
 from bson import ObjectId
+from pydantic import BaseModel
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,8 +57,12 @@ async def read_root(request: Request):
     return {"message": "Server is running"}
 
 
-@app.post("/fetch-accounts")
-async def fetch_accounts(request: Request):
+class FetchAccountsResponse(BaseModel):
+    accounts: List[Dict]
+
+
+@app.post("/fetch-accounts", response_model=FetchAccountsResponse)
+async def fetch_accounts():
     """Retrieve all accounts, optionally excluding a specific account.
     Args:
         request (Request): The request object containing an optional account_id to exclude.
@@ -63,17 +70,8 @@ async def fetch_accounts(request: Request):
         dict: A list of all accounts, optionally excluding a specific account.
     """
     try:
-        data = await request.json()
-        exclude_account_id = data.get("exclude_account_id")
-
-        # Validate exclude_account_id only if it's provided
-        if exclude_account_id and exclude_account_id.strip():
-            if not ObjectId.is_valid(exclude_account_id):
-                raise HTTPException(
-                    status_code=400, detail="Invalid exclude account ID format")
-            exclude_account_id = ObjectId(exclude_account_id)
-
-        accounts = accounts_service.get_accounts(exclude_account_id)
+        # Directly fetch all accounts without exclusion logic
+        accounts = accounts_service.get_accounts()
         logging.info(f"Retrieved {len(accounts)} accounts from the database")
 
         return Response(content=json.dumps({"accounts": accounts}, cls=MyJSONEncoder), media_type="application/json")
@@ -82,8 +80,8 @@ async def fetch_accounts(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/fetch-active-accounts")
-async def fetch_active_accounts(request: Request):
+@app.post("/fetch-active-accounts", response_model=FetchAccountsResponse)
+async def fetch_active_accounts():
     """Retrieve all active accounts, optionally excluding a specific account.
     Args:
         request (Request): The request object containing an optional account_id to exclude.
@@ -91,17 +89,8 @@ async def fetch_active_accounts(request: Request):
         dict: A list of all active accounts, optionally excluding a specific account.
     """
     try:
-        data = await request.json()
-        exclude_account_id = data.get("exclude_account_id")
-
-        # Validate exclude_account_id only if it's provided
-        if exclude_account_id and exclude_account_id.strip():
-            if not ObjectId.is_valid(exclude_account_id):
-                raise HTTPException(
-                    status_code=400, detail="Invalid exclude account ID format")
-            exclude_account_id = ObjectId(exclude_account_id)
-
-        accounts = accounts_service.get_active_accounts(exclude_account_id)
+        # Directly fetch all active accounts without exclusion logic
+        accounts = accounts_service.get_active_accounts()
         logging.info(
             f"Retrieved {len(accounts)} active accounts from the database")
 
@@ -111,8 +100,16 @@ async def fetch_active_accounts(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/find-account-by-number")
-async def find_account_by_number(request: Request):
+class FindAccountByNumberRequest(BaseModel):
+    account_number: str
+
+
+class FindAccountByNumberResponse(BaseModel):
+    account: Dict
+
+
+@app.post("/find-account-by-number", response_model=FindAccountByNumberResponse)
+async def find_account_by_number(request: Request, account_data: FindAccountByNumberRequest):
     """Retrieve an account by its number.
     Args:
         request (Request): The request object containing the account number.
@@ -143,8 +140,8 @@ async def find_account_by_number(request: Request):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/find-active-account-by-number")
-async def find_active_account_by_number(request: Request):
+@app.post("/find-active-account-by-number", response_model=FindAccountByNumberResponse)
+async def find_active_account_by_number(request: Request, account_data: FindAccountByNumberRequest):
     """Retrieve an active account by its number.
     Args:
         request (Request): The request object containing the account number.
@@ -177,13 +174,29 @@ async def find_active_account_by_number(request: Request):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/create-account")
-async def create_account(request: Request):
+class CreateAccountRequest(BaseModel):
+    UserName: str
+    UserId: str
+    AccountNumber: str
+    AccountBalance: float
+    AccountType: str
+
+
+class CreateAccountResponse(BaseModel):
+    message: str
+    account_id: str
+
+
+@app.post("/create-account", response_model=CreateAccountResponse)
+async def create_account(request: Request, account_data: CreateAccountRequest):
     """Create a new account with the provided data.
+
     Args:
         request (Request): The request object containing account data.
+        account_data (AccountRequest): The account data to create a new account.
+
     Returns:
-        dict: A message indicating success and the account ID.
+        AccountResponse: A dictionary indicating success with the created account ID.
     """
     try:
         data = await request.json()
@@ -245,39 +258,25 @@ async def create_account(request: Request):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/delete-account")
-async def delete_account(request: Request):
-    """Delete an account by its ID: account_id.
-    Args:
-        request (Request): The request object containing the account ID.
-    Returns:
-        dict: A message indicating success or failure.
+class CloseAccountRequest(BaseModel):
+    account_id: str
+
+
+class CloseAccountResponse(BaseModel):
+    message: str
+
+
+@app.post("/close-account", response_model=CreateAccountResponse)
+async def close_account(request: Request, account_data: CloseAccountRequest):
     """
-    try:
-        data = await request.json()
-        account_id = data.get("account_id")
-        if not account_id or not ObjectId.is_valid(account_id):
-            raise HTTPException(
-                status_code=400, detail="Invalid account ID format")
-        success = accounts_service.delete_account(account_id)
-        if success:
-            logging.info(f"Account with ID {account_id} deleted successfully")
-            return {"message": "Account deleted successfully"}
-        else:
-            logging.error(f"Account with ID {account_id} not found")
-            raise HTTPException(status_code=404, detail="Account not found")
-    except Exception as e:
-        logging.error(f"Error deleting account: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    Close an account by its ID: account_id if the balance is zero.
 
-
-@app.post("/close-account")
-async def close_account(request: Request):
-    """Close an account by its ID: account_id if the balance is zero.
     Args:
-        request (Request): The request object containing the account ID.
+        request (Request): The request object containing account data.
+        account_data (CreateAccountRequest): The account data to create a new account.
+
     Returns:
-        dict: A message indicating success or failure.
+        CreateAccountResponse: A dictionary indicating success with the created account ID.
     """
     try:
         data = await request.json()
@@ -288,7 +287,7 @@ async def close_account(request: Request):
         success = accounts_service.close_account(account_id)
         if success:
             logging.info(f"Account with ID {account_id} closed successfully")
-            return {"message": "Account closed successfully"}
+            return {"account_id": account_id, "message": "Account closed successfully"}
         else:
             logging.error(f"Account with ID {account_id} cannot be closed")
             raise HTTPException(
@@ -297,9 +296,12 @@ async def close_account(request: Request):
         logging.error(f"Error closing account: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class FetchAccountsForUserRequest(BaseModel):
+    user_identifier: str
 
-@app.post("/fetch-accounts-for-user")
-async def fetch_accounts_for_user(request: Request):
+
+@app.post("/fetch-accounts-for-user", response_model=FetchAccountsResponse)
+async def fetch_accounts_for_user(request: Request, user_data: FetchAccountsForUserRequest):
     """Retrieve all accounts for a specific user by UserName or ID.
     Args:
         request (Request): The request object containing the user_identifier.
@@ -327,8 +329,8 @@ async def fetch_accounts_for_user(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/fetch-active-accounts-for-user")
-async def fetch_active_accounts_for_user(request: Request):
+@app.post("/fetch-active-accounts-for-user", response_model=FetchAccountsResponse)
+async def fetch_active_accounts_for_user(request: Request, user_data: FetchAccountsForUserRequest):
     """Retrieve active accounts for a specific user by UserName or ID.
     Args:
         request (Request): The request object containing the user_identifier.
@@ -358,7 +360,11 @@ async def fetch_active_accounts_for_user(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/fetch-users")
+class FetchUsersResponse(BaseModel):
+    users: List[Dict]
+
+
+@app.post("/fetch-users", response_model=FetchUsersResponse)
 async def fetch_users():
     """Retrieve all users from the database.
     Returns:
@@ -373,8 +379,16 @@ async def fetch_users():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/fetch-user")
-async def fetch_user(request: Request):
+class FindUserRequest(BaseModel):
+    user_identifier: str
+
+
+class FindUserResponse(BaseModel):
+    user: Dict
+
+
+@app.post("/find-user", response_model=FindUserResponse)
+async def find_user(request: Request, user_data: FindUserRequest):
     """Retrieve a specific user by UserName or ID.
     Args:
         request (Request): The request object containing the user_identifier.

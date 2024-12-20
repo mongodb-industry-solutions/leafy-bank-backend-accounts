@@ -30,29 +30,23 @@ class AccountsService:
         self.users_collection = connection.get_collection(
             db_name, users_collection_name)
 
-    def get_accounts(self, exclude_account_id: Optional[str] = None) -> list[dict]:
+    def get_accounts(self) -> list[dict]:
         """Retrieve all accounts, optionally excluding a specific account.
-        Args:
-            exclude_account_id (Optional[str]): The ID of the account to exclude from the results.
+        
         Returns:
-            list[dict]: A list of all accounts, optionally excluding a specific account.
+            list[dict]: A list of all accounts.
         """
-        query = {}
-        if exclude_account_id:
-            query["_id"] = {"$ne": ObjectId(exclude_account_id)}
-        accounts = list(self.accounts_collection.find(query))
+        accounts = list(self.accounts_collection.find({}))
         return accounts
 
-    def get_active_accounts(self, exclude_account_id: Optional[str] = None) -> list[dict]:
+    def get_active_accounts(self) -> list[dict]:
         """Retrieve all active accounts, optionally excluding a specific account.
-        Args:
-            exclude_account_id (Optional[str]): The ID of the account to exclude from the results.
+        
         Returns:
-            list[dict]: A list of all active accounts, optionally excluding a specific account.
+            list[dict]: A list of all active accounts.
         """
+        # Fetch accounts where 'AccountStatus' is 'Active'
         query = {"AccountStatus": "Active"}
-        if exclude_account_id:
-            query["_id"] = {"$ne": ObjectId(exclude_account_id)}
         accounts = list(self.accounts_collection.find(query))
         return accounts
 
