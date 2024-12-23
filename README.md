@@ -1,6 +1,6 @@
 # Leafy Bank Accounts Service (Backend)
 
-This repository powers the backend for Leafy Bank, managing account operations such as opening and closing accounts. It utilizes MongoDB to ensure secure and efficient transaction processing, providing APIs for seamless integration.
+This repository powers the backend for Leafy Bank, a demo banking application designed to showcase modern financial services technology. It manages account operations such as opening and closing accounts, utilizing MongoDB to ensure secure and efficient data processing. The backend provides APIs for seamless integration, highlighting the robustness and flexibility of modern banking solutions.
 
 ## Where Does MongoDB Shine?
 
