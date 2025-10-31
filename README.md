@@ -101,10 +101,10 @@ MONGODB_URI = "mongodb+srv://<REPLACE_USERNAME>:<REPLACE_PASSWORD>@<REPLACE_CLUS
 
 1. To run the backend, execute the following command:
     ````bash
-    poetry run uvicorn main:app --host 0.0.0.0 --port 8000
+    poetry run uvicorn main:app --host 0.0.0.0 --port 8080
     ````
 
-> **_Note:_** Notice that the backend is running on port `8000`. You can change this port by modifying the `--port` flag.
+> **_Note:_** Notice that the backend is running on port `8080`. You can change this port by modifying the `--port` flag.
 
 ## Run with Docker
 
@@ -126,7 +126,7 @@ You can access the API documentation by visiting the following URL:
 ```
 http://localhost:<PORT_NUMBER>/docs
 ```
-E.g. `http://localhost:8000/docs`
+E.g. `http://localhost:8080/docs`
 
 > **_Note:_** Make sure to replace `<PORT_NUMBER>` with the port number you are using and ensure the backend is running.
 
