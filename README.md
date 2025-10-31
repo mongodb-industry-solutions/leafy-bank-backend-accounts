@@ -73,7 +73,6 @@ Before you begin, ensure you have met the following requirements:
 
 ```bash
 MONGODB_URI = "mongodb+srv://<REPLACE_USERNAME>:<REPLACE_PASSWORD>@<REPLACE_CLUSTER_NAME>.mongodb.net/<REPLACE_DATABASE_NAME>"
-ORIGINS=http://localhost:3000
 ```
 
 ## Run it Locally
@@ -102,10 +101,10 @@ ORIGINS=http://localhost:3000
 
 1. To run the backend, execute the following command:
     ````bash
-    poetry run uvicorn main:app --host 0.0.0.0 --port 8000
+    poetry run uvicorn main:app --host 0.0.0.0 --port 8080
     ````
 
-> **_Note:_** Notice that the backend is running on port `8000`. You can change this port by modifying the `--port` flag.
+> **_Note:_** Notice that the backend is running on port `8080`. You can change this port by modifying the `--port` flag.
 
 ## Run with Docker
 
@@ -127,17 +126,14 @@ You can access the API documentation by visiting the following URL:
 ```
 http://localhost:<PORT_NUMBER>/docs
 ```
-E.g. `http://localhost:8000/docs`
+E.g. `http://localhost:8080/docs`
 
 > **_Note:_** Make sure to replace `<PORT_NUMBER>` with the port number you are using and ensure the backend is running.
 
 ## Common errors
 
-- Check that you've created an `.env` file that contains the `MONGODB_URI` and `ORIGINS` variables.
+- Check that you've created an `.env` file that contains the `MONGODB_URI` variable.
 
-## Future tasks
+## 📄 License
 
-- [ ] Add tests
-- [ ] Evaluate SonarQube for code quality
-- [ ] Automate the deployment process using GitHub Actions or CodePipeline
-- [ ] Improve Pydantic usage for API Request and Response models
+See [LICENSE](LICENSE) file for details.
