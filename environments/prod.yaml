@@ -1,0 +1,10 @@
+env:
+  NODE_ENV: prod
+  
+envSecrets:
+  MONGODB_URI: leafy-bank-backend-accounts
+
+serviceAccount:
+  enabled: true
+  create: false  # Don't create a new service account
+  name: irsa  # Use the existing one
