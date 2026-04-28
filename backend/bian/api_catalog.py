@@ -1,394 +1,713 @@
-"""Static catalog describing the backend's API operations in BIAN v14 terms.
+"""Static catalog describing the BIAN v14 API contract for the Leafy Bank demo.
 
 This is the single source of truth for the "BIAN API" tab in the frontend
-explorer. Each operation carries:
-  - id: stable client-side key
-  - bianOperationName: PascalCase BIAN canonical operation name
-  - method, path: HTTP contract
-  - summary: short human description
-  - request.example, response.example: placeholder JSON shapes (replace with
-    real schemas once finalized)
+explorer modal. The catalog spans two backend services:
 
-To update real schemas later, edit only this file -- the frontend renders
-whatever this catalog returns without code changes.
+  - leafy-bank-backend-accounts (this service, :8080)
+      * PartyReferenceDataDirectoryEntry
+      * CurrentAccountFulfillmentArrangement
+  - leafy-bank-backend-transactions (:8001)
+      * PaymentOrderProcedure
+
+Conventions captured at the top level apply to every operation:
+  - HTTP method is always POST (the verb lives in the URL).
+  - Request bodies use BIAN PascalCase field names; unknown fields are
+    rejected (extra="forbid" -> 422).
+  - Money values are JSON numbers; currency is ISO-4217 (3 chars).
+  - IDs are opaque prefixed strings (CUST-, ACC-, PAY-, TXN-).
+
+Per-operation metadata:
+  id                       - stable client-side key
+  bianBehaviorQualifier    - optional BIAN sub-record (e.g. "CustomerKYCRecord")
+  bianAction               - Retrieve | Request | Initiate | Control
+  method                   - always "POST"
+  path                     - PascalCase BIAN URL
+  summary                  - one-line human description
+  headers                  - list of header descriptors (e.g. Idempotency-Key)
+  enums                    - field -> [allowed values]
+  request                  - { required, notes, examples: [{label, value}] }
+  response                 - { successCodes, envelopeKeys, example }
+  errors                   - list of { code, case }
 """
 
 API_CATALOG = {
     "version": "v14",
     "description": (
-        "Dual-layer naming: BIAN v14 PascalCase names "
-        "([Object][Attribute][SemanticType]) used at the API/contract layer, "
-        "Mongo camelCase used at the data layer."
+        "BIAN v14 contract layer for Leafy Bank. Verb-in-URL, POST-only. "
+        "Two services: accounts (:8080) and transactions (:8001)."
     ),
-    "domains": [
-        {
-            "key": "customers",
-            "label": "Customers",
-            "bianServiceDomain": "Customer Reference Data Directory",
-            "operations": [
-                {
-                    "id": "retrieveCustomerReferenceDataDirectory",
-                    "bianOperationName": "RetrieveCustomerReferenceDataDirectory",
-                    "method": "GET",
-                    "path": "/fetch-customers",
-                    "summary": "Retrieve all customers in the directory.",
-                    "request": {"example": {}},
-                    "response": {
-                        "example": {
-                            "customers": [
-                                {
-                                    "CustomerReference": "C-0001",
-                                    "PartyLegalName": "Ada Lovelace",
-                                    "PartyApexStatus": "Active",
-                                    "CustomerSegmentType": "Retail",
-                                    "CustomerSinceDate": "2018-04-12"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "id": "retrieveCustomerReferenceDataRecord",
-                    "bianOperationName": "RetrieveCustomerReferenceDataRecord",
-                    "method": "GET",
-                    "path": "/find-customer",
-                    "summary": "Retrieve a single customer by CustomerReference.",
-                    "request": {
-                        "example": {"customerReference": "C-0001"}
-                    },
-                    "response": {
-                        "example": {
-                            "customer": {
-                                "CustomerReference": "C-0001",
-                                "PartyLegalName": "Ada Lovelace",
-                                "PartyApexStatus": "Active",
-                                "PartyContactRecord": {
-                                    "PartyContactEmailAddress": "ada@example.com",
-                                    "PartyContactPhoneNumber": "+1-555-0100"
-                                },
-                                "CustomerKYCRecord": {
-                                    "CustomerKYCProcedureStatus": "Verified",
-                                    "CustomerKYCVerificationLevelType": "Enhanced"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "id": "registerCustomerReferenceDataRecord",
-                    "bianOperationName": "RegisterCustomerReferenceDataRecord",
-                    "method": "POST",
-                    "path": "/create-customer",
-                    "summary": "Register a new customer reference data record.",
-                    "request": {
-                        "example": {
-                            "PartyLegalName": "Grace Hopper",
-                            "PartyDateOfBirthDate": "1906-12-09",
-                            "CustomerSegmentType": "Retail",
-                            "PartyContactEmailAddress": "grace@example.com"
-                        }
-                    },
-                    "response": {
-                        "example": {
-                            "message": "Customer registered successfully",
-                            "CustomerReference": "C-0042"
-                        }
-                    }
-                }
-            ]
+    "conventions": {
+        "method": "POST",
+        "verbInUrl": True,
+        "extraFieldsRejected": True,
+        "moneyEncoding": "json-number",
+        "currencyStandard": "ISO-4217",
+        "errorBody": {"detail": "string"},
+        "idFormats": {
+            "CustomerReference": "CUST-...",
+            "CurrentAccountReference": "ACC-...",
+            "PaymentOrderReference": "PAY-...",
+            "CurrentAccountPaymentTransactionReference": "TXN-...-DEBIT|CREDIT",
         },
+    },
+    "statusCodes": [
+        {"code": 200, "meaning": "Success (Retrieve / Request / Control / Initiate-replay)"},
+        {"code": 201, "meaning": "Initiate created a new resource (some Initiates return 200; treat both as success)"},
+        {"code": 400, "meaning": "Service-rule violation (debtor=creditor, currency mismatch, amount over limit, etc.)"},
+        {"code": 404, "meaning": "Reference not found"},
+        {"code": 422, "meaning": "Pydantic validation failed (missing field, bad enum, unknown field, type error)"},
+        {"code": 500, "meaning": "Server bug / unhandled exception"},
+    ],
+    "services": [
         {
             "key": "accounts",
-            "label": "Accounts",
-            "bianServiceDomain": "Current Account Fulfillment",
-            "operations": [
+            "name": "leafy-bank-backend-accounts",
+            "host": "http://localhost",
+            "port": 8080,
+            "serviceDomains": [
                 {
-                    "id": "retrieveCurrentAccountDirectory",
-                    "bianOperationName": "RetrieveCurrentAccountDirectory",
-                    "method": "POST",
-                    "path": "/fetch-accounts",
-                    "summary": "Retrieve all current accounts.",
-                    "request": {"example": {}},
-                    "response": {
-                        "example": {
-                            "accounts": [
-                                {
-                                    "CurrentAccountReference": "A-1001",
-                                    "CurrentAccountNumber": "000123456789",
-                                    "CurrentAccountType": "Checking",
-                                    "CurrentAccountApexStatus": "Active",
-                                    "CurrentAccountCurrencyCode": "USD",
-                                    "CurrentAccountBalanceAmount": 4250.75
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "id": "retrieveActiveCurrentAccountDirectory",
-                    "bianOperationName": "RetrieveActiveCurrentAccountDirectory",
-                    "method": "POST",
-                    "path": "/fetch-active-accounts",
-                    "summary": "Retrieve only currently active current accounts.",
-                    "request": {"example": {}},
-                    "response": {
-                        "example": {
-                            "accounts": [
-                                {
-                                    "CurrentAccountReference": "A-1001",
-                                    "CurrentAccountApexStatus": "Active",
-                                    "CurrentAccountBalanceAmount": 4250.75
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "id": "retrieveCurrentAccountByNumber",
-                    "bianOperationName": "RetrieveCurrentAccountByNumber",
-                    "method": "POST",
-                    "path": "/find-account-by-number",
-                    "summary": "Retrieve a current account by its account number.",
-                    "request": {
-                        "example": {"CurrentAccountNumber": "000123456789"}
-                    },
-                    "response": {
-                        "example": {
-                            "account": {
-                                "CurrentAccountReference": "A-1001",
-                                "CurrentAccountNumber": "000123456789",
-                                "CurrentAccountApexStatus": "Active",
-                                "CurrentAccountBalanceAmount": 4250.75
-                            }
-                        }
-                    }
-                },
-                {
-                    "id": "initiateCurrentAccountFulfillment",
-                    "bianOperationName": "InitiateCurrentAccountFulfillment",
-                    "method": "POST",
-                    "path": "/create-account",
-                    "summary": "Open a new current account for a customer.",
-                    "request": {
-                        "example": {
-                            "CustomerReference": "C-0001",
-                            "CurrentAccountNumber": "000999888777",
-                            "CurrentAccountType": "Checking",
-                            "CurrentAccountBalanceAmount": 0.0,
-                            "CurrentAccountCurrencyCode": "USD"
-                        }
-                    },
-                    "response": {
-                        "example": {
-                            "message": "Account opened successfully",
-                            "CurrentAccountReference": "A-1042"
-                        }
-                    }
-                },
-                {
-                    "id": "terminateCurrentAccountFulfillment",
-                    "bianOperationName": "TerminateCurrentAccountFulfillment",
-                    "method": "POST",
-                    "path": "/close-account",
-                    "summary": "Close a current account (balance must be zero).",
-                    "request": {
-                        "example": {"CurrentAccountReference": "A-1001"}
-                    },
-                    "response": {
-                        "example": {
-                            "message": "Account closed successfully",
-                            "CurrentAccountReference": "A-1001",
-                            "CurrentAccountCloseDate": "2026-04-28"
-                        }
-                    }
-                },
-                {
-                    "id": "retrieveCurrentAccountsForCustomer",
-                    "bianOperationName": "RetrieveCurrentAccountsForCustomer",
-                    "method": "POST",
-                    "path": "/fetch-accounts-for-user",
-                    "summary": "Retrieve all current accounts for a given customer.",
-                    "request": {
-                        "example": {"CustomerReference": "C-0001"}
-                    },
-                    "response": {
-                        "example": {
-                            "accounts": [
-                                {
-                                    "CurrentAccountReference": "A-1001",
-                                    "CurrentAccountType": "Checking",
-                                    "CurrentAccountBalanceAmount": 4250.75
+                    "key": "PartyReferenceDataDirectoryEntry",
+                    "label": "Party Reference Data Directory Entry",
+                    "description": "Customer master data and KYC.",
+                    "operations": [
+                        {
+                            "id": "retrieveCustomer",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Retrieve",
+                            "method": "POST",
+                            "path": "/PartyReferenceDataDirectoryEntry/Retrieve",
+                            "summary": "Look up one customer by CustomerReference.",
+                            "headers": [],
+                            "enums": {},
+                            "request": {
+                                "required": ["CustomerReference"],
+                                "notes": None,
+                                "examples": [
+                                    {
+                                        "label": "by reference",
+                                        "value": {"CustomerReference": "CUST-abc123"},
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CustomerReference", "PartyReferenceDataDirectoryEntryRecord"],
+                                "example": {
+                                    "CustomerReference": "CUST-abc123",
+                                    "PartyReferenceDataDirectoryEntryRecord": {
+                                        "CustomerReference": "CUST-abc123",
+                                        "PartyApexStatus": "ACTIVE",
+                                        "PartyType": "INDIVIDUAL",
+                                        "CustomerSegmentType": "RETAIL",
+                                        "PartyIdentification": {
+                                            "PartyLegalName": "Jane Doe",
+                                            "PartyDateOfBirth": "1985-04-12",
+                                            "PartyContactRecord": {
+                                                "PartyContactEmail": "jane@example.com",
+                                                "PartyContactPhone": "+1-555-0100",
+                                            },
+                                        },
+                                    },
                                 },
-                                {
-                                    "CurrentAccountReference": "A-1002",
-                                    "CurrentAccountType": "Savings",
-                                    "CurrentAccountBalanceAmount": 18000.00
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "key": "payments",
-            "label": "Payments",
-            "bianServiceDomain": "Payment Order",
-            "operations": [
-                {
-                    "id": "retrievePaymentOrderDirectory",
-                    "bianOperationName": "RetrievePaymentOrderDirectory",
-                    "method": "GET",
-                    "path": "/fetch-payments",
-                    "summary": "Retrieve the directory of payment orders.",
-                    "request": {"example": {}},
-                    "response": {
-                        "example": {
-                            "payments": [
-                                {
-                                    "PaymentOrderReference": "P-7001",
-                                    "PaymentApexStatus": "Settled",
-                                    "PaymentRailType": "ACH",
-                                    "PaymentInstructedAmount": 1200.00,
-                                    "PaymentInstructedCurrencyCode": "USD"
-                                }
-                            ]
-                        }
-                    }
+                            },
+                            "errors": [
+                                {"code": 404, "case": "CustomerReference not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                        },
+                        {
+                            "id": "requestCustomers",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Request",
+                            "method": "POST",
+                            "path": "/PartyReferenceDataDirectoryEntry/Request",
+                            "summary": "List/query customers. All filters optional; empty body returns all.",
+                            "headers": [],
+                            "enums": {
+                                "PartyApexStatus": [
+                                    "PROSPECT", "ACTIVE", "DORMANT", "SUSPENDED", "CLOSED",
+                                ],
+                                "PartyType": [
+                                    "INDIVIDUAL", "CORPORATE", "SME", "TRUST",
+                                    "GOVERNMENT", "FINANCIAL_INSTITUTION",
+                                ],
+                            },
+                            "request": {
+                                "required": [],
+                                "notes": "All filters optional. Empty body returns all customers.",
+                                "examples": [
+                                    {
+                                        "label": "all customers",
+                                        "value": {},
+                                    },
+                                    {
+                                        "label": "filtered",
+                                        "value": {
+                                            "PartyApexStatus": "ACTIVE",
+                                            "CustomerSegmentType": "RETAIL",
+                                            "PartyType": "INDIVIDUAL",
+                                        },
+                                    },
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["PartyReferenceDataDirectoryEntryRecord"],
+                                "example": {
+                                    "PartyReferenceDataDirectoryEntryRecord": [
+                                        {
+                                            "CustomerReference": "CUST-abc123",
+                                            "PartyApexStatus": "ACTIVE",
+                                            "PartyType": "INDIVIDUAL",
+                                            "CustomerSegmentType": "RETAIL",
+                                        },
+                                        {
+                                            "CustomerReference": "CUST-def456",
+                                            "PartyApexStatus": "ACTIVE",
+                                            "PartyType": "INDIVIDUAL",
+                                            "CustomerSegmentType": "RETAIL",
+                                        },
+                                    ]
+                                },
+                            },
+                            "errors": [
+                                {"code": 422, "case": "Bad enum value or unknown field"},
+                            ],
+                        },
+                        {
+                            "id": "retrieveCustomerKYC",
+                            "bianBehaviorQualifier": "CustomerKYCRecord",
+                            "bianAction": "Retrieve",
+                            "method": "POST",
+                            "path": "/PartyReferenceDataDirectoryEntry/CustomerKYCRecord/Retrieve",
+                            "summary": "Retrieve the KYC record for one customer.",
+                            "headers": [],
+                            "enums": {},
+                            "request": {
+                                "required": ["CustomerReference"],
+                                "notes": None,
+                                "examples": [
+                                    {
+                                        "label": "by reference",
+                                        "value": {"CustomerReference": "CUST-abc123"},
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CustomerReference", "CustomerKYCRecord"],
+                                "example": {
+                                    "CustomerReference": "CUST-abc123",
+                                    "CustomerKYCRecord": {
+                                        "KYCStatus": "VERIFIED",
+                                        "KYCVerificationDate": "2024-08-15",
+                                        "KYCDocumentType": "PASSPORT",
+                                        "KYCDocumentReference": "P12345678",
+                                    },
+                                },
+                            },
+                            "errors": [
+                                {"code": 404, "case": "CustomerReference not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                        },
+                    ],
                 },
                 {
-                    "id": "initiatePaymentOrder",
-                    "bianOperationName": "InitiatePaymentOrder",
-                    "method": "POST",
-                    "path": "/initiate-payment",
-                    "summary": "Initiate a new payment order.",
-                    "request": {
-                        "example": {
-                            "DebtorAccountReference": "A-1001",
-                            "CreditorAccountNumber": "000444555666",
-                            "CreditorBankIdentifierCode": "BOFAUS3N",
-                            "PaymentInstructedAmount": 1200.00,
-                            "PaymentInstructedCurrencyCode": "USD",
-                            "PaymentRailType": "ACH",
-                            "RemittanceUnstructuredInformationText": "Invoice 2026-0042"
-                        }
-                    },
-                    "response": {
-                        "example": {
-                            "PaymentOrderReference": "P-7042",
-                            "PaymentApexStatus": "Received",
-                            "PaymentEndToEndIdentifier": "E2E-2026-0042",
-                            "PaymentReceivedDateTime": "2026-04-28T17:02:11Z"
-                        }
-                    }
+                    "key": "CurrentAccountFulfillmentArrangement",
+                    "label": "Current Account Fulfillment Arrangement",
+                    "description": "Account opening, retrieval, listing, control, balance, and transaction history.",
+                    "operations": [
+                        {
+                            "id": "initiateCurrentAccount",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Initiate",
+                            "method": "POST",
+                            "path": "/CurrentAccountFulfillmentArrangement/Initiate",
+                            "summary": "Open a new current account for an existing customer.",
+                            "headers": [],
+                            "enums": {
+                                "CurrentAccountType": [
+                                    "CURRENT", "SAVINGS", "FIXED_DEPOSIT",
+                                    "NOSTRO", "VOSTRO", "GL_ACCOUNT",
+                                ],
+                            },
+                            "request": {
+                                "required": [
+                                    "CustomerReference",
+                                    "CurrentAccountType",
+                                    "CurrentAccountNumber",
+                                    "CurrentAccountCurrencyCode",
+                                    "InitialDepositAmount",
+                                ],
+                                "notes": (
+                                    "ProductReference optional. "
+                                    "CurrentAccountCurrencyCode must be 3-char ISO-4217. "
+                                    "InitialDepositAmount must be >= 0."
+                                ),
+                                "examples": [
+                                    {
+                                        "label": "open checking",
+                                        "value": {
+                                            "CustomerReference": "CUST-abc123",
+                                            "ProductReference": "PROD-CHK-001",
+                                            "CurrentAccountType": "CURRENT",
+                                            "CurrentAccountNumber": "100200300",
+                                            "CurrentAccountCurrencyCode": "USD",
+                                            "InitialDepositAmount": 500.0,
+                                        },
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CurrentAccountReference", "CurrentAccountFulfillmentArrangementRecord"],
+                                "example": {
+                                    "CurrentAccountReference": "ACC-xyz789",
+                                    "CurrentAccountFulfillmentArrangementRecord": {
+                                        "CurrentAccountReference": "ACC-xyz789",
+                                        "CustomerReference": "CUST-abc123",
+                                        "CurrentAccountNumber": "100200300",
+                                        "CurrentAccountType": "CURRENT",
+                                        "CurrentAccountCurrencyCode": "USD",
+                                        "CurrentAccountApexStatus": "ACTIVE",
+                                        "CurrentAccountBalanceRecord": {
+                                            "CurrentAccountAvailableBalance": 500.0,
+                                            "CurrentAccountLedgerBalance": 500.0,
+                                        },
+                                    },
+                                },
+                            },
+                            "errors": [
+                                {"code": 400, "case": "Duplicate CurrentAccountNumber"},
+                                {"code": 400, "case": "Customer not active"},
+                                {"code": 404, "case": "CustomerReference not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                        },
+                        {
+                            "id": "retrieveCurrentAccount",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Retrieve",
+                            "method": "POST",
+                            "path": "/CurrentAccountFulfillmentArrangement/Retrieve",
+                            "summary": "Look up one account by CurrentAccountReference or CurrentAccountNumber.",
+                            "headers": [],
+                            "enums": {},
+                            "request": {
+                                "required": [],
+                                "notes": (
+                                    "At least one of CurrentAccountReference or CurrentAccountNumber required. "
+                                    "Returns 422 if neither field is present."
+                                ),
+                                "examples": [
+                                    {
+                                        "label": "by account reference",
+                                        "value": {"CurrentAccountReference": "ACC-xyz789"},
+                                    },
+                                    {
+                                        "label": "by account number",
+                                        "value": {"CurrentAccountNumber": "100200300"},
+                                    },
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CurrentAccountReference", "CurrentAccountFulfillmentArrangementRecord"],
+                                "example": {
+                                    "CurrentAccountReference": "ACC-xyz789",
+                                    "CurrentAccountFulfillmentArrangementRecord": {
+                                        "CurrentAccountReference": "ACC-xyz789",
+                                        "CustomerReference": "CUST-abc123",
+                                        "CurrentAccountNumber": "100200300",
+                                        "CurrentAccountType": "CURRENT",
+                                        "CurrentAccountCurrencyCode": "USD",
+                                        "CurrentAccountApexStatus": "ACTIVE",
+                                        "CurrentAccountBalanceRecord": {
+                                            "CurrentAccountAvailableBalance": 1234.56,
+                                            "CurrentAccountLedgerBalance": 1234.56,
+                                        },
+                                    },
+                                },
+                            },
+                            "errors": [
+                                {"code": 404, "case": "Account not found"},
+                                {"code": 422, "case": "Neither CurrentAccountReference nor CurrentAccountNumber provided"},
+                            ],
+                        },
+                        {
+                            "id": "requestCurrentAccounts",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Request",
+                            "method": "POST",
+                            "path": "/CurrentAccountFulfillmentArrangement/Request",
+                            "summary": "List/query accounts. All filters optional.",
+                            "headers": [],
+                            "enums": {
+                                "CurrentAccountApexStatus": [
+                                    "PENDING_ACTIVATION", "ACTIVE", "DORMANT",
+                                    "FROZEN", "CLOSED", "CHARGED_OFF",
+                                ],
+                                "CurrentAccountType": [
+                                    "CURRENT", "SAVINGS", "FIXED_DEPOSIT",
+                                    "NOSTRO", "VOSTRO", "GL_ACCOUNT",
+                                ],
+                            },
+                            "request": {
+                                "required": [],
+                                "notes": "All filters optional. Empty body returns all accounts.",
+                                "examples": [
+                                    {
+                                        "label": "all accounts for customer",
+                                        "value": {"CustomerReference": "CUST-abc123"},
+                                    },
+                                    {
+                                        "label": "active checking accounts for customer",
+                                        "value": {
+                                            "CustomerReference": "CUST-abc123",
+                                            "CurrentAccountApexStatus": "ACTIVE",
+                                            "CurrentAccountType": "CURRENT",
+                                        },
+                                    },
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CurrentAccountFulfillmentArrangementRecord"],
+                                "example": {
+                                    "CurrentAccountFulfillmentArrangementRecord": [
+                                        {
+                                            "CurrentAccountReference": "ACC-xyz789",
+                                            "CurrentAccountApexStatus": "ACTIVE",
+                                            "CurrentAccountType": "CURRENT",
+                                        },
+                                        {
+                                            "CurrentAccountReference": "ACC-pqr456",
+                                            "CurrentAccountApexStatus": "ACTIVE",
+                                            "CurrentAccountType": "SAVINGS",
+                                        },
+                                    ]
+                                },
+                            },
+                            "errors": [
+                                {"code": 422, "case": "Bad enum value or unknown field"},
+                            ],
+                        },
+                        {
+                            "id": "controlCurrentAccount",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Control",
+                            "method": "POST",
+                            "path": "/CurrentAccountFulfillmentArrangement/Control",
+                            "summary": "State-change action on an account. Phase 1 supports Close only.",
+                            "headers": [],
+                            "enums": {
+                                "ControlActionType": ["Close"],
+                            },
+                            "request": {
+                                "required": ["CurrentAccountReference", "ControlActionType"],
+                                "notes": "ControlActionReason optional. Phase 1: only ControlActionType=\"Close\" is accepted.",
+                                "examples": [
+                                    {
+                                        "label": "close account",
+                                        "value": {
+                                            "CurrentAccountReference": "ACC-xyz789",
+                                            "ControlActionType": "Close",
+                                            "ControlActionReason": "Customer requested closure",
+                                        },
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CurrentAccountReference", "ControlActionType", "CurrentAccountFulfillmentArrangementRecord"],
+                                "example": {
+                                    "CurrentAccountReference": "ACC-xyz789",
+                                    "ControlActionType": "Close",
+                                    "CurrentAccountFulfillmentArrangementRecord": {
+                                        "CurrentAccountReference": "ACC-xyz789",
+                                        "CurrentAccountApexStatus": "CLOSED",
+                                    },
+                                },
+                            },
+                            "errors": [
+                                {"code": 400, "case": "Account already closed"},
+                                {"code": 400, "case": "Account has non-zero balance"},
+                                {"code": 404, "case": "Account not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                        },
+                        {
+                            "id": "retrieveCurrentAccountBalance",
+                            "bianBehaviorQualifier": "CurrentAccountBalanceRecord",
+                            "bianAction": "Retrieve",
+                            "method": "POST",
+                            "path": "/CurrentAccountFulfillmentArrangement/CurrentAccountBalanceRecord/Retrieve",
+                            "summary": "Get the current balance record for one account.",
+                            "headers": [],
+                            "enums": {},
+                            "request": {
+                                "required": ["CurrentAccountReference"],
+                                "notes": None,
+                                "examples": [
+                                    {
+                                        "label": "by account reference",
+                                        "value": {"CurrentAccountReference": "ACC-xyz789"},
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": [
+                                    "CurrentAccountReference",
+                                    "CurrentAccountBalanceRecord",
+                                    "CurrentAccountCurrencyCode",
+                                ],
+                                "example": {
+                                    "CurrentAccountReference": "ACC-xyz789",
+                                    "CurrentAccountBalanceRecord": {
+                                        "CurrentAccountAvailableBalance": 1234.56,
+                                        "CurrentAccountLedgerBalance": 1234.56,
+                                        "CurrentAccountBalanceAsOfDateTime": "2026-04-28T10:15:30Z",
+                                    },
+                                    "CurrentAccountCurrencyCode": "USD",
+                                },
+                            },
+                            "errors": [
+                                {"code": 404, "case": "Account not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                        },
+                        {
+                            "id": "requestCurrentAccountTransactions",
+                            "bianBehaviorQualifier": "CurrentAccountTransaction",
+                            "bianAction": "Request",
+                            "method": "POST",
+                            "path": "/CurrentAccountFulfillmentArrangement/CurrentAccountTransaction/Request",
+                            "summary": "List recent ledger legs for an account (written by the transactions service).",
+                            "headers": [],
+                            "enums": {
+                                "TransactionDirection": ["DEBIT", "CREDIT"],
+                            },
+                            "request": {
+                                "required": ["CurrentAccountReference"],
+                                "notes": "Limit optional. Default 20, range 1..100.",
+                                "examples": [
+                                    {
+                                        "label": "last 20 transactions",
+                                        "value": {"CurrentAccountReference": "ACC-xyz789", "Limit": 20},
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": ["CurrentAccountReference", "CurrentAccountPaymentTransactionRecord"],
+                                "example": {
+                                    "CurrentAccountReference": "ACC-xyz789",
+                                    "CurrentAccountPaymentTransactionRecord": [
+                                        {
+                                            "CurrentAccountPaymentTransactionReference": "TXN-PAY-abc-DEBIT",
+                                            "PaymentOrderReference": "PAY-abc",
+                                            "TransactionAmount": 100.0,
+                                            "TransactionCurrencyCode": "USD",
+                                            "TransactionDirection": "DEBIT",
+                                            "TransactionPostingDate": "2026-04-28T10:15:30Z",
+                                            "CurrentAccountReference": "ACC-xyz789",
+                                            "CounterpartyAccountReference": "ACC-pqr456",
+                                        }
+                                    ],
+                                },
+                            },
+                            "errors": [
+                                {"code": 404, "case": "Account not found"},
+                                {"code": 422, "case": "Limit out of range or invalid type"},
+                            ],
+                        },
+                    ],
                 },
-                {
-                    "id": "retrievePaymentOrderRecord",
-                    "bianOperationName": "RetrievePaymentOrderRecord",
-                    "method": "GET",
-                    "path": "/find-payment",
-                    "summary": "Retrieve a single payment order by reference.",
-                    "request": {
-                        "example": {"PaymentOrderReference": "P-7042"}
-                    },
-                    "response": {
-                        "example": {
-                            "payment": {
-                                "PaymentOrderReference": "P-7042",
-                                "PaymentApexStatus": "Settled",
-                                "PaymentInstructedAmount": 1200.00,
-                                "PaymentSettledDateTime": "2026-04-28T17:08:55Z",
-                                "PaymentFraudDecisionType": "Approved"
-                            }
-                        }
-                    }
-                }
-            ]
+            ],
         },
         {
             "key": "transactions",
-            "label": "Transactions",
-            "bianServiceDomain": "Transaction Engine",
-            "operations": [
+            "name": "leafy-bank-backend-transactions",
+            "host": "http://localhost",
+            "port": 8001,
+            "serviceDomains": [
                 {
-                    "id": "retrieveTransactionDirectory",
-                    "bianOperationName": "RetrieveTransactionDirectory",
-                    "method": "GET",
-                    "path": "/fetch-transactions",
-                    "summary": "Retrieve the directory of posted transactions.",
-                    "request": {"example": {}},
-                    "response": {
-                        "example": {
-                            "transactions": [
+                    "key": "PaymentOrderProcedure",
+                    "label": "Payment Order Procedure",
+                    "description": "Submit and retrieve payment orders. Multi-document ACID transactions.",
+                    "operations": [
+                        {
+                            "id": "initiatePaymentOrder",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Initiate",
+                            "method": "POST",
+                            "path": "/PaymentOrderProcedure/Initiate",
+                            "summary": (
+                                "Submit a new payment order. Multi-document ACID: atomically writes "
+                                "the payment, two ledger legs, balance updates, and one notification."
+                            ),
+                            "headers": [
                                 {
-                                    "TransactionReference": "T-9001",
-                                    "CurrentAccountReference": "A-1001",
-                                    "TransactionType": "Debit",
-                                    "TransactionAmount": 42.50,
-                                    "TransactionCurrencyCode": "USD",
-                                    "TransactionBookingDate": "2026-04-27"
+                                    "name": "Idempotency-Key",
+                                    "required": False,
+                                    "notes": (
+                                        "Recommended client-generated UUID. Maps to endToEndId. "
+                                        "Replays with the same key return the original response without "
+                                        "re-running the transaction."
+                                    ),
                                 }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "id": "retrieveTransactionsForAccount",
-                    "bianOperationName": "RetrieveTransactionsForAccount",
-                    "method": "GET",
-                    "path": "/fetch-transactions-for-account",
-                    "summary": "Retrieve all transactions for a specific account.",
-                    "request": {
-                        "example": {"CurrentAccountReference": "A-1001"}
-                    },
-                    "response": {
-                        "example": {
-                            "transactions": [
-                                {
-                                    "TransactionReference": "T-9001",
-                                    "TransactionType": "Debit",
-                                    "TransactionAmount": 42.50,
-                                    "CurrentAccountBalanceAfterTransactionAmount": 4208.25,
-                                    "TransactionDescriptionText": "Coffee shop"
+                            ],
+                            "enums": {
+                                "PaymentType": [
+                                    "CREDIT_TRANSFER", "DIRECT_DEBIT", "CARD_PAYMENT",
+                                    "CHEQUE", "INTRABANK_TRANSFER",
+                                ],
+                                "PaymentRailType": ["INTERNAL"],
+                            },
+                            "request": {
+                                "required": [
+                                    "CustomerReference",
+                                    "PaymentType",
+                                    "PaymentRailType",
+                                    "PaymentDebtorRecord",
+                                    "PaymentCreditorRecord",
+                                    "PaymentInstructedAmount",
+                                    "PaymentInstructedCurrencyCode",
+                                ],
+                                "notes": (
+                                    "Phase 1: PaymentRailType is INTERNAL only. "
+                                    "PaymentInstructedAmount must be > 0. "
+                                    "PaymentInstructedCurrencyCode must be 3-char ISO-4217. "
+                                    "PaymentRemittanceRecord optional."
+                                ),
+                                "examples": [
+                                    {
+                                        "label": "intrabank transfer",
+                                        "value": {
+                                            "CustomerReference": "CUST-abc123",
+                                            "PaymentType": "INTRABANK_TRANSFER",
+                                            "PaymentRailType": "INTERNAL",
+                                            "PaymentDebtorRecord": {
+                                                "DebtorAccountReference": "ACC-xyz789"
+                                            },
+                                            "PaymentCreditorRecord": {
+                                                "CreditorAccountReference": "ACC-pqr456"
+                                            },
+                                            "PaymentInstructedAmount": 100.0,
+                                            "PaymentInstructedCurrencyCode": "USD",
+                                            "PaymentRemittanceRecord": {
+                                                "RemittanceUnstructuredInformationText": "Lunch payback"
+                                            },
+                                        },
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200, 201],
+                                "envelopeKeys": [
+                                    "PaymentOrderReference",
+                                    "PaymentApexStatus",
+                                    "PaymentOrderRecord",
+                                ],
+                                "example": {
+                                    "PaymentOrderReference": "PAY-abc",
+                                    "PaymentApexStatus": "COMPLETED",
+                                    "PaymentOrderRecord": {
+                                        "PaymentOrderReference": "PAY-abc",
+                                        "CustomerReference": "CUST-abc123",
+                                        "PaymentType": "INTRABANK_TRANSFER",
+                                        "PaymentRailType": "INTERNAL",
+                                        "PaymentApexStatus": "COMPLETED",
+                                        "PaymentDebtorRecord": {"DebtorAccountReference": "ACC-xyz789"},
+                                        "PaymentCreditorRecord": {"CreditorAccountReference": "ACC-pqr456"},
+                                        "PaymentInstructedAmount": 100.0,
+                                        "PaymentInstructedCurrencyCode": "USD",
+                                        "PaymentInitiationDateTime": "2026-04-28T10:15:30Z",
+                                        "PaymentRemittanceRecord": {
+                                            "RemittanceUnstructuredInformationText": "Lunch payback"
+                                        },
+                                    },
                                 },
-                                {
-                                    "TransactionReference": "T-9002",
-                                    "TransactionType": "Credit",
-                                    "TransactionAmount": 2500.00,
-                                    "CurrentAccountBalanceAfterTransactionAmount": 6708.25,
-                                    "TransactionDescriptionText": "Payroll deposit"
-                                }
-                            ]
-                        }
-                    }
+                            },
+                            "errors": [
+                                {"code": 400, "case": "Debtor and creditor are the same account"},
+                                {"code": 400, "case": "Debtor account not active"},
+                                {"code": 400, "case": "Currency mismatch between request and account(s)"},
+                                {"code": 400, "case": "Amount over PAYMENT_LIMIT_USD (default 500)"},
+                                {"code": 400, "case": "Insufficient funds"},
+                                {"code": 404, "case": "Debtor or creditor account not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                            "notesFooter": (
+                                "Idempotency replay: a request with a previously-seen "
+                                "Idempotency-Key returns the original 200 response and does NOT "
+                                "re-execute the transaction."
+                            ),
+                        },
+                        {
+                            "id": "retrievePaymentOrder",
+                            "bianBehaviorQualifier": None,
+                            "bianAction": "Retrieve",
+                            "method": "POST",
+                            "path": "/PaymentOrderProcedure/Retrieve",
+                            "summary": "Look up a single payment order plus its ledger legs.",
+                            "headers": [],
+                            "enums": {},
+                            "request": {
+                                "required": ["PaymentOrderReference"],
+                                "notes": None,
+                                "examples": [
+                                    {
+                                        "label": "by payment reference",
+                                        "value": {"PaymentOrderReference": "PAY-abc"},
+                                    }
+                                ],
+                            },
+                            "response": {
+                                "successCodes": [200],
+                                "envelopeKeys": [
+                                    "PaymentOrderReference",
+                                    "PaymentOrderRecord",
+                                    "CurrentAccountPaymentTransactionRecord",
+                                ],
+                                "example": {
+                                    "PaymentOrderReference": "PAY-abc",
+                                    "PaymentOrderRecord": {
+                                        "PaymentOrderReference": "PAY-abc",
+                                        "PaymentApexStatus": "COMPLETED",
+                                        "PaymentDebtorRecord": {"DebtorAccountReference": "ACC-xyz789"},
+                                        "PaymentCreditorRecord": {"CreditorAccountReference": "ACC-pqr456"},
+                                        "PaymentInstructedAmount": 100.0,
+                                        "PaymentInstructedCurrencyCode": "USD",
+                                    },
+                                    "CurrentAccountPaymentTransactionRecord": [
+                                        {
+                                            "CurrentAccountPaymentTransactionReference": "TXN-PAY-abc-DEBIT",
+                                            "TransactionDirection": "DEBIT",
+                                            "CurrentAccountReference": "ACC-xyz789",
+                                            "TransactionAmount": 100.0,
+                                            "TransactionCurrencyCode": "USD",
+                                        },
+                                        {
+                                            "CurrentAccountPaymentTransactionReference": "TXN-PAY-abc-CREDIT",
+                                            "TransactionDirection": "CREDIT",
+                                            "CurrentAccountReference": "ACC-pqr456",
+                                            "TransactionAmount": 100.0,
+                                            "TransactionCurrencyCode": "USD",
+                                        },
+                                    ],
+                                },
+                            },
+                            "errors": [
+                                {"code": 404, "case": "PaymentOrderReference not found"},
+                                {"code": 422, "case": "Validation error"},
+                            ],
+                        },
+                    ],
                 },
-                {
-                    "id": "retrieveTransactionRecord",
-                    "bianOperationName": "RetrieveTransactionRecord",
-                    "method": "GET",
-                    "path": "/find-transaction",
-                    "summary": "Retrieve a single transaction by reference.",
-                    "request": {
-                        "example": {"TransactionReference": "T-9001"}
-                    },
-                    "response": {
-                        "example": {
-                            "transaction": {
-                                "TransactionReference": "T-9001",
-                                "CurrentAccountReference": "A-1001",
-                                "TransactionType": "Debit",
-                                "TransactionAmount": 42.50,
-                                "TransactionCurrencyCode": "USD",
-                                "TransactionBookingDate": "2026-04-27",
-                                "TransactionCounterpartyRecord": {
-                                    "CounterpartyName": "Blue Bottle Coffee",
-                                    "CounterpartyCountryCode": "US"
-                                }
-                            }
-                        }
-                    }
-                }
-            ]
-        }
-    ]
+            ],
+        },
+    ],
 }
