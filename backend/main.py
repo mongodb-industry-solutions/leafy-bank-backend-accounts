@@ -1,14 +1,3 @@
-from database.connection import MongoDBConnection
-from services.accounts_service import AccountsService
-from services.users_service import UsersService
-from services.bian_service import BianService
-from encoder.json_encoder import MyJSONEncoder
-from bian.api_catalog import API_CATALOG
-
-import logging
-
-from typing import List, Dict
-
 import json
 import logging
 import os
@@ -29,9 +18,11 @@ from api_models import (
     PartyReferenceRequestRequest,
     PartyReferenceRetrieveRequest,
 )
+from bian.api_catalog import API_CATALOG
 from database.connection import MongoDBConnection
 from encoder.json_encoder import MyJSONEncoder
 from services.accounts_service import AccountsService
+from services.bian_service import BianService
 from services.customers_service import CustomersService
 from shared import registry
 
@@ -55,17 +46,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-router = APIRouter()
-
-# Initialize the MongoDB connection
-db_name = os.getenv("LEAFYBANK_DB_NAME", "leafy_bank_bian")
-accounts_collection_name = "accounts"
-users_collection_name = "users"
-bian_mapping_collection_name = "bian_mapping"
-logging.info(f"Using MongoDB database: {db_name}")
+# Initialize the MongoDB connection + service instances.
+logging.info(f"Using MongoDB database: {DB_NAME}")
 connection = MongoDBConnection(MONGODB_URI)
 accounts_service = AccountsService(connection, DB_NAME)
 customers_service = CustomersService(connection, DB_NAME)
+# BianService is read-only access to the `bian_mapping` metadata collection,
+# powering the BIAN explorer endpoints below (`/fetch-bian-mapping`).
+bian_service = BianService(connection, DB_NAME, "bian_mapping")
 
 
 def _bian_response(envelope: dict) -> Response:
@@ -73,11 +61,6 @@ def _bian_response(envelope: dict) -> Response:
         content=json.dumps(envelope, cls=MyJSONEncoder),
         media_type="application/json",
     )
-
-
-# Initialize the BianService (read-only access to bian_mapping metadata)
-bian_service = BianService(
-    connection, db_name, bian_mapping_collection_name)
 
 # ---------- Health / root ----------
 
@@ -290,10 +273,13 @@ async def account_activity_request(body: AccountActivityRequestRequest):
             customer_ref=body.CustomerReference,
             limit=body.Limit,
         )
+        # Return raw Mongo docs (camelCase, as stored on `leafy_bank_bian.transactions`)
+        # so the UI's expand-JSON panel shows the actual storage shape. The BIAN
+        # PascalCase translation was dropped here intentionally — this route is a
+        # UI-display report, not a BIAN service operation. Other operation routes
+        # (PaymentOrder Initiate/Retrieve, etc.) still translate via the registry.
         envelope = {
-            "CurrentAccountPaymentTransactionRecord": [
-                registry.to_bian("transactions", leg) for leg in legs
-            ],
+            "transactions": legs,
         }
         if body.CurrentAccountReference:
             envelope["CurrentAccountReference"] = body.CurrentAccountReference
