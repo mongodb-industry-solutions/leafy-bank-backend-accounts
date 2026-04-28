@@ -254,20 +254,33 @@ async def account_balance_retrieve(body: AccountBalanceRetrieveRequest):
 async def account_activity_request(body: AccountActivityRequestRequest):
     """BIAN CurrentAccountFulfillmentArrangement / CurrentAccountTransaction / Request.
 
-    Returns ledger legs for an account (relocated from the transactions service per plan-v2 § 5).
+    Returns ledger legs scoped to either a single account (`CurrentAccountReference`) or
+    fanned out across all of a customer's accounts (`CustomerReference`). Exactly one is
+    required; cross-field validation in `AccountActivityRequestRequest`.
+
+    The customer fan-out path was added in Phase 5 to power the UI's global recent-activity
+    feed in one network call (per umbrella plan-ui-bian-flip § 4.3 / PR-accounts-4).
     """
     try:
         legs = accounts_service.get_recent_activity(
-            body.CurrentAccountReference, limit=body.Limit
+            account_ref=body.CurrentAccountReference,
+            customer_ref=body.CustomerReference,
+            limit=body.Limit,
         )
-        return _bian_response({
-            "CurrentAccountReference": body.CurrentAccountReference,
+        envelope = {
             "CurrentAccountPaymentTransactionRecord": [
                 registry.to_bian("transactions", leg) for leg in legs
             ],
-        })
+        }
+        if body.CurrentAccountReference:
+            envelope["CurrentAccountReference"] = body.CurrentAccountReference
+        else:
+            envelope["CustomerReference"] = body.CustomerReference
+        return _bian_response(envelope)
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logging.error(
             "CurrentAccountFulfillmentArrangement/CurrentAccountTransaction/Request failed: %s", e

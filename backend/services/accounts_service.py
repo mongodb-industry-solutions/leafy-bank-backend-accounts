@@ -48,9 +48,38 @@ class AccountsService:
         )
         return doc
 
-    def get_recent_activity(self, account_ref: str, limit: int = 20) -> list[dict]:
+    def get_recent_activity(
+        self,
+        account_ref: Optional[str] = None,
+        customer_ref: Optional[str] = None,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Fetch recent ledger legs scoped either to one account or to all of a customer's accounts.
+
+        Exactly one of `account_ref` / `customer_ref` must be supplied (handler enforces this
+        via Pydantic). Fan-out path resolves the customer's owned accountIds first, then queries
+        the transactions collection with `$in`. Sort + limit applied across the merged set.
+        """
+        if bool(account_ref) == bool(customer_ref):
+            raise ValueError(
+                "Exactly one of account_ref or customer_ref must be provided."
+            )
+
+        if account_ref:
+            query = {"accountId": account_ref}
+        else:
+            owned = list(
+                self.accounts.find(
+                    {"customerId": customer_ref}, {"accountId": 1, "_id": 0}
+                )
+            )
+            owned_ids = [a["accountId"] for a in owned]
+            if not owned_ids:
+                return []
+            query = {"accountId": {"$in": owned_ids}}
+
         cursor = (
-            self.transactions.find({"accountId": account_ref})
+            self.transactions.find(query)
             .sort("bookingDate", -1)
             .limit(limit)
         )
