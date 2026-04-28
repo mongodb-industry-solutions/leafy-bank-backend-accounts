@@ -53,7 +53,7 @@ accounts_service = AccountsService(connection, DB_NAME)
 customers_service = CustomersService(connection, DB_NAME)
 # BianService is read-only access to the `bian_mapping` metadata collection,
 # powering the BIAN explorer endpoints below (`/fetch-bian-mapping`).
-bian_service = BianService(connection, DB_NAME, "bian_mapping")
+bian_service = BianService(connection, DB_NAME, "bian-mapping")
 
 
 def _bian_response(envelope: dict) -> Response:
