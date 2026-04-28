@@ -1,6 +1,8 @@
 # Leafy Bank Accounts Service (Backend)
 
-This repository powers the backend for Leafy Bank, a demo banking application designed to showcase modern financial services technology. It manages account operations such as opening and closing accounts, utilizing MongoDB to ensure secure and efficient data processing. The backend provides APIs for seamless integration, highlighting the robustness and flexibility of modern banking solutions.
+This repository powers the backend for Leafy Bank, a demo banking application designed to showcase modern financial services technology. It implements the BIAN v14 **PartyReferenceDataDirectoryEntry** and **CurrentAccountFulfillmentArrangement** service domains — managing customer reference data and account lifecycle (open, close, retrieve, list, balance, activity). Backed by MongoDB Atlas, the service exposes 9 BIAN service-domain URLs over FastAPI.
+
+> **Migration notice:** This service was migrated from a flat-verb REST surface (`/fetch-users`, `/find-account-by-number`, `/create-account`, etc.) to BIAN service-domain URLs (`POST /<ServiceDomain>/<Verb>`) on 2026-04-28, alongside a data-model move from `leafy_bank` (legacy, PascalCase) to `leafy_bank_bian` (BIAN v4, camelCase storage with BIAN PascalCase at the API layer). See [BIAN_MIGRATION.md](BIAN_MIGRATION.md) for the full record.
 
 ## Where Does MongoDB Shine?
 
@@ -46,16 +48,19 @@ Before you begin, ensure you have met the following requirements:
 
 ### Step 1: Set Up MongoDB Database and Collections
 
-1. Log in to [MongoDB Atlas](https://account.mongodb.com/account/login) and create a new database named `leafy_bank`. You can use another name if you prefer, but make sure to update all database name references in the code and environment variables.
-2. Inside this database, create a 4 (four) empty collections:
-    - `users`
-    - `accounts`
-    - `transactions`
-    - `notifications`
+1. Log in to [MongoDB Atlas](https://account.mongodb.com/account/login) and create a new database named `leafy_bank_bian` (the BIAN-aligned DB used by both this service and `leafy-bank-backend-transactions`). You can use another name if you prefer, but set `LEAFYBANK_DB_NAME` accordingly.
+2. Inside this database, the BIAN v4 collections are:
+    - `customers` — BIAN PartyReferenceDataDirectoryEntry (nested `identification`/`contact`/`kyc`)
+    - `accounts` — BIAN CurrentAccountFulfillmentArrangement (nested `balance`/`interest`/`signatories`/`statement`/`gl`)
+    - `payments` — BIAN PaymentOrderProcedure (written by transactions service)
+    - `transactions` — BIAN CurrentAccountPaymentTransaction (ledger legs, written by transactions service; this service reads them for the activity route)
+    - `notifications` — sender-only notification feed (written by transactions service)
+
+  Seed via [Requirements/Sample New Data/v4/transform.py](../../Requirements/Sample%20New%20Data/v4/transform.py) which migrates legacy `leafy_bank` records to the v4 shape.
 
 ### Step 2: Add MongoDB User
 
-- Create a new MongoDB user with read and write access to the `leafy_bank` database. You can follow the official MongoDB documentation to create a new user. You can find the instructions [here](https://www.mongodb.com/docs/atlas/security-add-mongodb-users/).
+- Create a new MongoDB user with read and write access to the `leafy_bank_bian` database. You can follow the official MongoDB documentation to create a new user. You can find the instructions [here](https://www.mongodb.com/docs/atlas/security-add-mongodb-users/).
 
 #### From the GUI, you can follow these steps:
 1. Access your cluster.
