@@ -1,3 +1,14 @@
+from database.connection import MongoDBConnection
+from services.accounts_service import AccountsService
+from services.users_service import UsersService
+from services.bian_service import BianService
+from encoder.json_encoder import MyJSONEncoder
+from bian.api_catalog import API_CATALOG
+
+import logging
+
+from typing import List, Dict
+
 import json
 import logging
 import os
@@ -44,6 +55,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+router = APIRouter()
+
+# Initialize the MongoDB connection
+db_name = os.getenv("LEAFYBANK_DB_NAME", "leafy_bank_bian")
+accounts_collection_name = "accounts"
+users_collection_name = "users"
+bian_mapping_collection_name = "bian_mapping"
+logging.info(f"Using MongoDB database: {db_name}")
 connection = MongoDBConnection(MONGODB_URI)
 accounts_service = AccountsService(connection, DB_NAME)
 customers_service = CustomersService(connection, DB_NAME)
@@ -55,6 +74,10 @@ def _bian_response(envelope: dict) -> Response:
         media_type="application/json",
     )
 
+
+# Initialize the BianService (read-only access to bian_mapping metadata)
+bian_service = BianService(
+    connection, db_name, bian_mapping_collection_name)
 
 # ---------- Health / root ----------
 
@@ -282,6 +305,61 @@ async def account_activity_request(body: AccountActivityRequestRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logging.error(f"Error retrieving user: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# BIAN explorer endpoints (read-only metadata for the UI BIAN modal)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/fetch-bian-mapping")
+async def fetch_bian_mapping():
+    """Retrieve the singleton bian_mapping document.
+
+    The document maps Mongo camelCase field paths to their BIAN v14 canonical
+    names, grouped by domain (customers, accounts, payments, transactions),
+    plus a $meta block with version and source info.
+
+    Returns:
+        dict: { "mapping": { "$meta": {...}, "customers": {...}, ... } }
+    """
+    try:
+        document = bian_service.get_mapping()
+        if document is None:
+            raise HTTPException(
+                status_code=404, detail="BIAN mapping document not found")
+        logging.info("Returning BIAN mapping document")
+        return Response(
+            content=json.dumps({"mapping": document}, cls=MyJSONEncoder),
+            media_type="application/json")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving BIAN mapping: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/fetch-bian-api-catalog")
+async def fetch_bian_api_catalog():
+    """Retrieve the BIAN API catalog.
+
+    The catalog describes each backend operation in BIAN v14 terms
+    (PascalCase operation names) with placeholder request/response examples.
+    Single source of truth: backend/bian/api_catalog.py.
+
+    Returns:
+        dict: { "catalog": { "version", "description", "domains": [...] } }
+    """
+    try:
+        logging.info("Returning BIAN API catalog")
+        return Response(
+            content=json.dumps({"catalog": API_CATALOG}, cls=MyJSONEncoder),
+            media_type="application/json")
+    except Exception as e:
+        logging.error(f"Error retrieving BIAN API catalog: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
         logging.error(
             "CurrentAccountFulfillmentArrangement/CurrentAccountTransaction/Request failed: %s", e
         )
