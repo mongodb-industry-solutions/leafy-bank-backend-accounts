@@ -1,11 +1,8 @@
 """Pydantic request models for the BIAN PartyReferenceDataDirectoryEntry +
 CurrentAccountFulfillmentArrangement service domains.
 
-Field names are BIAN canonical (PascalCase). The runtime registry handles translation
-to camelCase Mongo storage keys — these models exist purely for boundary validation,
-IDE autocomplete, and OpenAPI request schemas.
-
-Drift between these models and `bian-alias-map.json` is a real risk. Verify periodically.
+Field names use camelCase alias names (matching Mongo storage). The registry
+handles BIAN documentation mapping; no wire translation is done at request time.
 """
 
 from typing import Literal, Optional
@@ -27,86 +24,73 @@ CurrentAccountTypeEnum = Literal[
 # ---------- PartyReferenceDataDirectoryEntry ----------
 
 class PartyReferenceRetrieveRequest(BaseModel):
-    CustomerReference: str = Field(min_length=1)
+    customerId: str = Field(min_length=1)
     model_config = ConfigDict(extra="forbid")
 
 
 class PartyReferenceRequestRequest(BaseModel):
-    PartyApexStatus: Optional[PartyApexStatusType] = None
-    CustomerSegmentType: Optional[str] = None
-    PartyType: Optional[PartyTypeEnum] = None
+    status: Optional[PartyApexStatusType] = None
+    segment: Optional[str] = None
+    type: Optional[PartyTypeEnum] = None
     model_config = ConfigDict(extra="forbid")
 
 
 class CustomerKYCRetrieveRequest(BaseModel):
-    CustomerReference: str = Field(min_length=1)
+    customerId: str = Field(min_length=1)
     model_config = ConfigDict(extra="forbid")
 
 
 # ---------- CurrentAccountFulfillmentArrangement ----------
 
 class AccountInitiateRequest(BaseModel):
-    CustomerReference: str = Field(min_length=1)
-    ProductReference: Optional[str] = None
-    CurrentAccountType: CurrentAccountTypeEnum
-    CurrentAccountNumber: str = Field(min_length=1)
-    CurrentAccountCurrencyCode: str = Field(min_length=3, max_length=3)
-    InitialDepositAmount: float = Field(ge=0)
+    customerId: str = Field(min_length=1)
+    productId: Optional[str] = None
+    type: CurrentAccountTypeEnum
+    accountNumber: str = Field(min_length=1)
+    currency: str = Field(min_length=3, max_length=3)
+    initialDeposit: float = Field(ge=0)
     model_config = ConfigDict(extra="forbid")
 
 
 class AccountRetrieveRequest(BaseModel):
-    CurrentAccountReference: Optional[str] = None
-    CurrentAccountNumber: Optional[str] = None
+    accountId: Optional[str] = None
+    accountNumber: Optional[str] = None
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
     def _at_least_one(self):
-        if not self.CurrentAccountReference and not self.CurrentAccountNumber:
-            raise ValueError(
-                "One of CurrentAccountReference or CurrentAccountNumber is required."
-            )
+        if not self.accountId and not self.accountNumber:
+            raise ValueError("One of accountId or accountNumber is required.")
         return self
 
 
 class AccountRequestRequest(BaseModel):
-    CustomerReference: Optional[str] = None
-    CurrentAccountApexStatus: Optional[CurrentAccountApexStatusType] = None
-    CurrentAccountType: Optional[CurrentAccountTypeEnum] = None
+    customerId: Optional[str] = None
+    status: Optional[CurrentAccountApexStatusType] = None
+    type: Optional[CurrentAccountTypeEnum] = None
     model_config = ConfigDict(extra="forbid")
 
 
 class AccountControlRequest(BaseModel):
-    CurrentAccountReference: str = Field(min_length=1)
-    ControlActionType: Literal["Close"]
-    ControlActionReason: Optional[str] = None
+    accountId: str = Field(min_length=1)
+    controlAction: Literal["Close"]
+    controlReason: Optional[str] = None
     model_config = ConfigDict(extra="forbid")
 
 
 class AccountBalanceRetrieveRequest(BaseModel):
-    CurrentAccountReference: str = Field(min_length=1)
+    accountId: str = Field(min_length=1)
     model_config = ConfigDict(extra="forbid")
 
 
 class AccountActivityRequestRequest(BaseModel):
-    """Activity query — accepts either a single account ref or a customer ref for fan-out.
-
-    Fan-out path (`CustomerReference`) added in Phase 5 (PR-accounts-4) so the UI can fetch
-    a global recent-activity feed for a logged-in customer in one network call. Existing
-    per-account callers keep working unchanged.
-    """
-
-    CurrentAccountReference: Optional[str] = None
-    CustomerReference: Optional[str] = None
-    Limit: int = Field(default=20, ge=1, le=100)
+    accountId: Optional[str] = None
+    customerId: Optional[str] = None
+    limit: int = Field(default=20, ge=1, le=100)
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
     def _exactly_one(self):
-        has_account = bool(self.CurrentAccountReference)
-        has_customer = bool(self.CustomerReference)
-        if has_account == has_customer:
-            raise ValueError(
-                "Exactly one of CurrentAccountReference or CustomerReference is required."
-            )
+        if bool(self.accountId) == bool(self.customerId):
+            raise ValueError("Exactly one of accountId or customerId is required.")
         return self

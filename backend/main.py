@@ -46,13 +46,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the MongoDB connection + service instances.
-logging.info(f"Using MongoDB database: {DB_NAME}")
 connection = MongoDBConnection(MONGODB_URI)
 accounts_service = AccountsService(connection, DB_NAME)
 customers_service = CustomersService(connection, DB_NAME)
-# BianService is read-only access to the `bian_mapping` metadata collection,
-# powering the BIAN explorer endpoints below (`/fetch-bian-mapping`).
 bian_service = BianService(connection, DB_NAME, "bian-mapping")
 
 
@@ -61,6 +57,12 @@ def _bian_response(envelope: dict) -> Response:
         content=json.dumps(envelope, cls=MyJSONEncoder),
         media_type="application/json",
     )
+
+
+def _strip(doc: dict) -> dict:
+    doc.pop("_id", None)
+    return doc
+
 
 # ---------- Health / root ----------
 
@@ -85,14 +87,13 @@ def health_check():
 
 @app.post("/PartyReferenceDataDirectoryEntry/Retrieve")
 async def party_retrieve(body: PartyReferenceRetrieveRequest):
-    """BIAN PartyReferenceDataDirectoryEntry / Retrieve."""
     try:
-        customer = customers_service.get_customer(body.CustomerReference)
+        customer = customers_service.get_customer(body.customerId)
         if not customer:
-            raise HTTPException(status_code=404, detail="CustomerReference not found.")
+            raise HTTPException(status_code=404, detail="customerId not found.")
         return _bian_response({
-            "CustomerReference": customer["customerId"],
-            "PartyReferenceDataDirectoryEntryRecord": registry.to_bian("customers", customer),
+            "customerId": customer["customerId"],
+            "customer": _strip(customer),
         })
     except HTTPException:
         raise
@@ -103,14 +104,10 @@ async def party_retrieve(body: PartyReferenceRetrieveRequest):
 
 @app.post("/PartyReferenceDataDirectoryEntry/Request")
 async def party_request(body: PartyReferenceRequestRequest):
-    """BIAN PartyReferenceDataDirectoryEntry / Request — list/query customers."""
     try:
-        alias_filters = registry.to_alias("customers", body.model_dump(exclude_none=True))
-        customers = customers_service.list_customers(alias_filters)
+        customers = customers_service.list_customers(body.model_dump(exclude_none=True))
         return _bian_response({
-            "PartyReferenceDataDirectoryEntryRecord": [
-                registry.to_bian("customers", c) for c in customers
-            ],
+            "customers": [_strip(c) for c in customers],
         })
     except HTTPException:
         raise
@@ -121,17 +118,13 @@ async def party_request(body: PartyReferenceRequestRequest):
 
 @app.post("/PartyReferenceDataDirectoryEntry/CustomerKYCRecord/Retrieve")
 async def party_kyc_retrieve(body: CustomerKYCRetrieveRequest):
-    """BIAN PartyReferenceDataDirectoryEntry / CustomerKYCRecord / Retrieve."""
     try:
-        kyc_doc = customers_service.get_customer_kyc(body.CustomerReference)
-        if not kyc_doc:
-            raise HTTPException(status_code=404, detail="CustomerReference not found.")
-        bian_kyc = registry.to_bian(
-            "customers", {"kyc": kyc_doc.get("kyc", {})}
-        ).get("CustomerKYCRecord", {})
+        doc = customers_service.get_customer_kyc(body.customerId)
+        if not doc:
+            raise HTTPException(status_code=404, detail="customerId not found.")
         return _bian_response({
-            "CustomerReference": kyc_doc["customerId"],
-            "CustomerKYCRecord": bian_kyc,
+            "customerId": doc["customerId"],
+            "kyc": doc.get("kyc", {}),
         })
     except HTTPException:
         raise
@@ -144,20 +137,18 @@ async def party_kyc_retrieve(body: CustomerKYCRetrieveRequest):
 
 @app.post("/CurrentAccountFulfillmentArrangement/Initiate")
 async def account_initiate(body: AccountInitiateRequest):
-    """BIAN CurrentAccountFulfillmentArrangement / Initiate — open a new account."""
     try:
-        alias_body = registry.to_alias("accounts", body.model_dump(exclude_none=True))
         account_doc = accounts_service.create_account(
-            customer_ref=alias_body["customerId"],
-            product_ref=body.ProductReference,
-            account_number=alias_body["accountNumber"],
-            currency=alias_body["currency"],
-            account_type=alias_body["type"],
-            initial_deposit=body.InitialDepositAmount,
+            customer_ref=body.customerId,
+            product_ref=body.productId,
+            account_number=body.accountNumber,
+            currency=body.currency,
+            account_type=body.type,
+            initial_deposit=body.initialDeposit,
         )
         return _bian_response({
-            "CurrentAccountReference": account_doc["accountId"],
-            "CurrentAccountFulfillmentArrangementRecord": registry.to_bian("accounts", account_doc),
+            "accountId": account_doc["accountId"],
+            "account": _strip(account_doc),
         })
     except HTTPException:
         raise
@@ -170,20 +161,16 @@ async def account_initiate(body: AccountInitiateRequest):
 
 @app.post("/CurrentAccountFulfillmentArrangement/Retrieve")
 async def account_retrieve(body: AccountRetrieveRequest):
-    """BIAN CurrentAccountFulfillmentArrangement / Retrieve.
-
-    Body accepts either `CurrentAccountReference` (preferred) or `CurrentAccountNumber`.
-    """
     try:
-        if body.CurrentAccountReference:
-            account = accounts_service.get_account(body.CurrentAccountReference)
+        if body.accountId:
+            account = accounts_service.get_account(body.accountId)
         else:
-            account = accounts_service.get_account_by_number(body.CurrentAccountNumber)
+            account = accounts_service.get_account_by_number(body.accountNumber)
         if not account:
             raise HTTPException(status_code=404, detail="Account not found.")
         return _bian_response({
-            "CurrentAccountReference": account["accountId"],
-            "CurrentAccountFulfillmentArrangementRecord": registry.to_bian("accounts", account),
+            "accountId": account["accountId"],
+            "account": _strip(account),
         })
     except HTTPException:
         raise
@@ -194,14 +181,10 @@ async def account_retrieve(body: AccountRetrieveRequest):
 
 @app.post("/CurrentAccountFulfillmentArrangement/Request")
 async def account_request(body: AccountRequestRequest):
-    """BIAN CurrentAccountFulfillmentArrangement / Request — list/query accounts."""
     try:
-        alias_filters = registry.to_alias("accounts", body.model_dump(exclude_none=True))
-        accounts = accounts_service.list_accounts(alias_filters)
+        accounts = accounts_service.list_accounts(body.model_dump(exclude_none=True))
         return _bian_response({
-            "CurrentAccountFulfillmentArrangementRecord": [
-                registry.to_bian("accounts", a) for a in accounts
-            ],
+            "accounts": [_strip(a) for a in accounts],
         })
     except HTTPException:
         raise
@@ -212,15 +195,12 @@ async def account_request(body: AccountRequestRequest):
 
 @app.post("/CurrentAccountFulfillmentArrangement/Control")
 async def account_control(body: AccountControlRequest):
-    """BIAN CurrentAccountFulfillmentArrangement / Control — Close in Phase 1."""
     try:
-        account = accounts_service.control_close(
-            body.CurrentAccountReference, body.ControlActionReason
-        )
+        account = accounts_service.control_close(body.accountId, body.controlReason)
         return _bian_response({
-            "CurrentAccountReference": account["accountId"],
-            "ControlActionType": "Close",
-            "CurrentAccountFulfillmentArrangementRecord": registry.to_bian("accounts", account),
+            "accountId": account["accountId"],
+            "controlAction": body.controlAction,
+            "account": _strip(account),
         })
     except HTTPException:
         raise
@@ -233,18 +213,14 @@ async def account_control(body: AccountControlRequest):
 
 @app.post("/CurrentAccountFulfillmentArrangement/CurrentAccountBalanceRecord/Retrieve")
 async def account_balance_retrieve(body: AccountBalanceRetrieveRequest):
-    """BIAN CurrentAccountFulfillmentArrangement / CurrentAccountBalanceRecord / Retrieve."""
     try:
-        doc = accounts_service.get_balance(body.CurrentAccountReference)
+        doc = accounts_service.get_balance(body.accountId)
         if not doc:
             raise HTTPException(status_code=404, detail="Account not found.")
-        bian = registry.to_bian(
-            "accounts", {"balance": doc.get("balance", {}), "currency": doc.get("currency")}
-        )
         return _bian_response({
-            "CurrentAccountReference": doc["accountId"],
-            "CurrentAccountBalanceRecord": bian.get("CurrentAccountBalanceRecord", {}),
-            "CurrentAccountCurrencyCode": bian.get("CurrentAccountCurrencyCode"),
+            "accountId": doc["accountId"],
+            "balance": doc.get("balance", {}),
+            "currency": doc.get("currency"),
         })
     except HTTPException:
         raise
@@ -258,59 +234,35 @@ async def account_balance_retrieve(body: AccountBalanceRetrieveRequest):
 
 @app.post("/CurrentAccountFulfillmentArrangement/CurrentAccountTransaction/Request")
 async def account_activity_request(body: AccountActivityRequestRequest):
-    """BIAN CurrentAccountFulfillmentArrangement / CurrentAccountTransaction / Request.
-
-    Returns ledger legs scoped to either a single account (`CurrentAccountReference`) or
-    fanned out across all of a customer's accounts (`CustomerReference`). Exactly one is
-    required; cross-field validation in `AccountActivityRequestRequest`.
-
-    The customer fan-out path was added in Phase 5 to power the UI's global recent-activity
-    feed in one network call (per umbrella plan-ui-bian-flip § 4.3 / PR-accounts-4).
-    """
     try:
         legs = accounts_service.get_recent_activity(
-            account_ref=body.CurrentAccountReference,
-            customer_ref=body.CustomerReference,
-            limit=body.Limit,
+            account_ref=body.accountId,
+            customer_ref=body.customerId,
+            limit=body.limit,
         )
-        # Return raw Mongo docs (camelCase, as stored on `leafy_bank_bian.transactions`)
-        # so the UI's expand-JSON panel shows the actual storage shape. The BIAN
-        # PascalCase translation was dropped here intentionally — this route is a
-        # UI-display report, not a BIAN service operation. Other operation routes
-        # (PaymentOrder Initiate/Retrieve, etc.) still translate via the registry.
-        envelope = {
-            "transactions": legs,
-        }
-        if body.CurrentAccountReference:
-            envelope["CurrentAccountReference"] = body.CurrentAccountReference
+        envelope = {"transactions": [_strip(leg) for leg in legs]}
+        if body.accountId:
+            envelope["accountId"] = body.accountId
         else:
-            envelope["CustomerReference"] = body.CustomerReference
+            envelope["customerId"] = body.customerId
         return _bian_response(envelope)
     except HTTPException:
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logging.error(f"Error retrieving user: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(
+            "CurrentAccountFulfillmentArrangement/CurrentAccountTransaction/Request failed: %s", e
+        )
+        raise HTTPException(status_code=500, detail="Internal activity error.")
 
 
 # ---------------------------------------------------------------------------
 # BIAN explorer endpoints (read-only metadata for the UI BIAN modal)
 # ---------------------------------------------------------------------------
 
-
 @app.get("/fetch-bian-mapping")
 async def fetch_bian_mapping():
-    """Retrieve the singleton bian_mapping document.
-
-    The document maps Mongo camelCase field paths to their BIAN v14 canonical
-    names, grouped by domain (customers, accounts, payments, transactions),
-    plus a $meta block with version and source info.
-
-    Returns:
-        dict: { "mapping": { "$meta": {...}, "customers": {...}, ... } }
-    """
     try:
         document = bian_service.get_mapping()
         if document is None:
@@ -329,15 +281,6 @@ async def fetch_bian_mapping():
 
 @app.get("/fetch-bian-api-catalog")
 async def fetch_bian_api_catalog():
-    """Retrieve the BIAN API catalog.
-
-    The catalog describes each backend operation in BIAN v14 terms
-    (PascalCase operation names) with placeholder request/response examples.
-    Single source of truth: backend/bian/api_catalog.py.
-
-    Returns:
-        dict: { "catalog": { "version", "description", "domains": [...] } }
-    """
     try:
         logging.info("Returning BIAN API catalog")
         return Response(
@@ -346,7 +289,3 @@ async def fetch_bian_api_catalog():
     except Exception as e:
         logging.error(f"Error retrieving BIAN API catalog: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-        logging.error(
-            "CurrentAccountFulfillmentArrangement/CurrentAccountTransaction/Request failed: %s", e
-        )
-        raise HTTPException(status_code=500, detail="Internal activity error.")
