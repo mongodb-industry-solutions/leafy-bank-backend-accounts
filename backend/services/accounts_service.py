@@ -20,6 +20,16 @@ class AccountsService:
 
     DEFAULT_INITIAL_BALANCE_LIMIT = 1_000_000.0
 
+    # v6: gl.accountCode is a numeric FK to glAccounts.accountCode.
+    # Customer Deposits — Current → 2100; Customer Deposits — Savings → 2200.
+    GL_CODE_BY_TYPE = {
+        "CURRENT": "2100",
+        "SAVINGS": "2200",
+    }
+
+    # v7: accountBank holds the holding institution's display name.
+    ACCOUNT_BANK = "Leafy Bank"
+
     def __init__(self, connection: MongoDBConnection, db_name: str):
         db = connection.get_database(db_name)
         self.accounts = db["accounts"]
@@ -35,7 +45,7 @@ class AccountsService:
     def list_accounts(self, filters: dict) -> list[dict]:
         query = {}
         if (customer_ref := filters.get("customerId")):
-            query["customerId"] = customer_ref
+            query["customerSnapshot.customerId"] = customer_ref
         if (status := filters.get("status")):
             query["status"] = status
         if (acct_type := filters.get("type")):
@@ -70,7 +80,7 @@ class AccountsService:
         else:
             owned = list(
                 self.accounts.find(
-                    {"customerId": customer_ref}, {"accountId": 1, "_id": 0}
+                    {"customerSnapshot.customerId": customer_ref}, {"accountId": 1, "_id": 0}
                 )
             )
             owned_ids = [a["accountId"] for a in owned]
@@ -117,14 +127,19 @@ class AccountsService:
 
         ca_code = "CUR" if account_type == "CURRENT" else "SAV"
         product_id = product_ref or f"PROD-STD-{ca_code}-{currency}"
+        # v6: top-level customerId removed; customerSnapshot.customerId is the FK.
+        # v6 schema only defines DEPOSIT GL codes (2100/2200). Other account types
+        # fall back to None — they shouldn't reach this branch in current scope.
+        gl_account_code = self.GL_CODE_BY_TYPE.get(account_type)
 
         doc = {
             "_id": oid,
             "accountId": account_id,
             "accountNumber": account_number,
+            "accountBank": self.ACCOUNT_BANK,
             "type": account_type,
             "status": "ACTIVE",
-            "customerId": customer_ref,
+            "customerSnapshot": {"customerId": customer_ref},
             "productId": product_id,
             "branchId": "BRANCH-DEFAULT-001",
             "currency": currency,
@@ -165,7 +180,7 @@ class AccountsService:
                 "nextScheduledAt": None,
             },
             "gl": {
-                "glAccountId": f"GL-LIAB-DEPOSITS-{ca_code}-{currency}",
+                "accountCode": gl_account_code,
                 "costCenter": "CC-RETAIL-DEFAULT",
                 "profitCenter": "PC-RETAIL-DEFAULT",
             },
